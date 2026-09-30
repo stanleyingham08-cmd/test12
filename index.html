@@ -55,6 +55,13 @@
   .controls b { color: #e8d27a; font-weight: normal; }
   .blink { animation: blink 1.2s infinite; color: #fff; margin-top: 22px !important; font-size: 20px !important; }
   @keyframes blink { 50% { opacity: .2; } }
+  #pause { cursor: default; background: rgba(0,0,0,.8); }
+  #pause h1 { color: #ddd; text-shadow: 0 0 18px rgba(255,255,255,.25); }
+  .menu-buttons { display: flex; flex-direction: column; gap: 10px; margin: 18px 0 10px; width: 260px; }
+  .menu-buttons button { font: bold 17px 'Courier New', monospace; letter-spacing: 2px; padding: 11px 16px; color: #ddd;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.25); cursor: pointer; }
+  .menu-buttons button:hover, .menu-buttons button:focus-visible { background: rgba(232,210,122,.15); border-color: #e8d27a; color: #e8d27a; outline: none; }
+  #btnRestart:hover, #btnRestart:focus-visible { background: rgba(200,40,40,.2); border-color: #e05050; color: #ff7070; }
   #dawn { background: radial-gradient(ellipse at center 30%, rgba(90,50,20,.92), rgba(10,5,0,.95)); }
   #dawn h1 { color: #ffb347; text-shadow: 0 0 30px #ff8c00; }
   #rewards { margin: 14px 0; padding: 12px 22px; border: 1px solid rgba(255,180,80,.4); background: rgba(0,0,0,.35); }
@@ -92,7 +99,7 @@
   <div id="crankBar"><div></div></div>
 </div>
 <div id="toast"></div>
-<div id="hint">WASD move &middot; SHIFT sprint &middot; CLICK attack &middot; 1/2/3 weapons &middot; R reload &middot; V / middle-click shove &middot; E mine &middot; F flare &middot; SPACE / right-click crank</div>
+<div id="hint">WASD move &middot; SHIFT sprint &middot; CLICK attack &middot; 1/2/3 weapons &middot; R reload &middot; V / middle-click shove &middot; E mine &middot; F flare &middot; SPACE / right-click crank &middot; ESC / P pause</div>
 
 <div id="menu" class="overlay">
   <h1>DARK FOREST</h1>
@@ -120,6 +127,17 @@
   <div id="rewards"></div>
   <p id="nextWarn"></p>
   <p class="blink" id="dawnGo">CLICK OR PRESS ENTER TO FACE THE NEXT NIGHT</p>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <h1>PAUSED</h1>
+  <p id="pauseInfo"></p>
+  <div class="menu-buttons">
+    <button id="btnResume">RESUME GAME</button>
+    <button id="btnAudio">AUDIO: ON</button>
+    <button id="btnRestart">RESTART RUN</button>
+  </div>
+  <p style="color:#666">Press Esc or P to resume</p>
 </div>
 
 <div id="over" class="overlay hidden">
@@ -170,7 +188,7 @@ const CFG = {
   staminaMax: 100, staminaDrain: 32, staminaRegen: 20, staminaRecover: 30,
   mouseSens: 0.6, aimSmooth: 10, aimMaxTurn: 7.5,
   lightRange: 420, lightHalfAngle: 0.42, proximity: 110,
-  nightLength: 300,
+  nightLength: 120,
   shoveCost: 15, shoveRange: 80, shoveArc: 1.1,
   maxMines: 5, maxFlares: 5, flareBurn: 5, flareLure: 520, flareLight: 210, mineRadius: 150,
 };
@@ -208,14 +226,14 @@ const Sound = {
   ctx: null, master: null, noise: null, windGain: null, rainGain: null,
   init() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (this.ctx.state === 'suspended' && state !== 'paused') this.ctx.resume();
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.6;
+    this.master.gain.value = muted ? 0 : 0.6;
     this.master.connect(this.ctx.destination);
     const len = this.ctx.sampleRate * 2;
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -954,6 +972,7 @@ const cam = { x: 0, y: 0 };
 let viewX = 0, viewY = 0;
 let state = 'menu', T = 0, night = 1, nightT = 0, nightKills = 0, score = 0, newHigh = false;
 let highScore = loadHigh();
+let muted = (() => { try { return localStorage.getItem('darkForestMuted') === '1'; } catch (e) { return false; } })();
 let zombies = [], bullets = [], particles = [], decals = [], pickups = [], floaters = [], mines = [], flares = [], explosions = [], screenBlood = [];
 let muzzleT = 0, muzzleBig = false, hurtT = 0, shakeT = 0, spawnT = 0, lastGroan = -10, lastBang = -10, lastThud = -10;
 let heartbeatT = 0, lastBeat = -10, cricketT = 2, owlT = 20, roofA = 1, playerInside = true, toastT = 0;
@@ -985,6 +1004,7 @@ function resetNightWorld() {
 }
 
 function startGame() {
+  state = 'starting';
   Sound.init();
   lockPointer();
   Object.assign(player, {
@@ -1002,7 +1022,7 @@ function startGame() {
   Object.assign(light, { state: 'on', lit: true, failAt: rand(5, 30), crank: 0 });
   Object.assign(weather, { i: 0, target: 0, changeT: rand(20, 45), flash: 0, reflash: 0, boltT: rand(6, 12) });
   state = 'playing';
-  for (const id of ['menu', 'over', 'dawn']) document.getElementById(id).classList.add('hidden');
+  for (const id of ['menu', 'over', 'dawn', 'pause']) document.getElementById(id).classList.add('hidden');
   hudCache = '';
   toast('NIGHT 1 — SURVIVE UNTIL 6:00 AM', 4);
 }
@@ -3006,6 +3026,11 @@ window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
+  if (e.code === 'Escape' || e.code === 'KeyP') {
+    if (state === 'playing') pauseGame();
+    else if (state === 'paused' && performance.now() - pausedAt > 250) resumeGame();
+    return;
+  }
   Sound.init();
   if (state === 'playing') {
     if (e.code === 'Space') crankFlashlight();
@@ -3021,7 +3046,45 @@ window.addEventListener('keydown', e => {
   else if (state === 'intermission' && (e.code === 'Enter' || e.code === 'Space')) beginNight();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
-window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false;
+  pauseGame();
+});
+document.addEventListener('pointerlockchange', () => {
+  if (!document.pointerLockElement) pauseGame();
+});
+el('btnResume').addEventListener('click', resumeGame);
+el('btnAudio').addEventListener('click', toggleAudio);
+el('btnRestart').addEventListener('click', () => { if (state === 'paused') startGame(); });
+
+// ---------- pause & audio settings ----------
+let pausedAt = 0;
+function pauseGame() {
+  if (state !== 'playing') return;
+  state = 'paused';
+  pausedAt = performance.now();
+  for (const k in keys) keys[k] = false;
+  unlockPointer();
+  if (Sound.ctx && Sound.ctx.state === 'running') Sound.ctx.suspend();
+  el('pauseInfo').textContent = `Night ${night}  ·  ${clockText()}  ·  Score ${score}`;
+  el('pause').classList.remove('hidden');
+  el('btnResume').focus();
+}
+function resumeGame() {
+  if (state !== 'paused') return;
+  state = 'playing';
+  el('pause').classList.add('hidden');
+  lockPointer();
+  Sound.init();
+  last = performance.now();
+}
+function toggleAudio() {
+  muted = !muted;
+  try { localStorage.setItem('darkForestMuted', muted ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+  if (Sound.master) Sound.master.gain.value = muted ? 0 : 0.6;
+  el('btnAudio').textContent = muted ? 'AUDIO: OFF' : 'AUDIO: ON';
+}
+el('btnAudio').textContent = muted ? 'AUDIO: OFF' : 'AUDIO: ON';
 
 // ---------- main loop ----------
 let last = performance.now();
