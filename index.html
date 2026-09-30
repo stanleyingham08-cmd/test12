@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Forest - Horror Survival Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: #000;
+            cursor: none;
+        }
+
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        #gameOverScreen.show {
+            display: flex;
+        }
+
+        #gameOverText {
+            color: #ff3333;
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #ff3333;
+        }
+
+        #finalScore {
+            color: #ffff00;
+            font-size: 36px;
+            margin-bottom: 30px;
+        }
+
+        #restartText {
+            color: #fff;
+            font-size: 24px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        #scoreDisplay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffff00;
+            font-size: 24px;
+            z-index: 10;
+            text-shadow: 0 0 5px #ffff00;
+        }
+
+        #flashlightStatus {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #00ff00;
+            font-size: 18px;
+            z-index: 10;
+            text-shadow: 0 0 5px #00ff00;
+        }
+
+        #flashlightStatus.broken {
+            color: #ff0000;
+            text-shadow: 0 0 5px #ff0000;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #888;
+            font-size: 14px;
+            text-align: center;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="scoreDisplay">Score: 0</div>
+    <div id="flashlightStatus">FLASHLIGHT: ON</div>
+    <div id="controls">
+        <p>CLICK to shoot | C to fix flashlight | R to restart</p>
+    </div>
+    <div id="gameOverScreen">
+        <div id="gameOverText">GAME OVER</div>
+        <div id="finalScore">Final Score: 0</div>
+        <div id="restartText">Press R to restart...</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Game state
+        const gameState = {
+            player: {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                radius: 15,
+                angle: 0
+            },
+            flashlight: {
+                on: true,
+                nextFailTime: Math.random() * 25000 + 5000,
+                angle: 0,
+                range: 300,
+                width: Math.PI / 3
+            },
+            mouse: {
+                x: canvas.width / 2,
+                y: canvas.height / 2
+            },
+            zombies: [],
+            bullets: [],
+            score: 0,
+            gameOver: false,
+            lastZombieSpawn: 0,
+            zombieSpawnRate: 1500
+        };
+
+        // Zombie class
+        class Zombie {
+            constructor(angle) {
+                const distance = 800;
+                this.x = gameState.player.x + Math.cos(angle) * distance;
+                this.y = gameState.player.y + Math.sin(angle) * distance;
+                this.radius = 20;
+                this.speed = 1.5;
+                this.health = 1;
+            }
+
+            update() {
+                const dx = gameState.player.x - this.x;
+                const dy = gameState.player.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > 0) {
+                    this.x += (dx / distance) * this.speed;
+                    this.y += (dy / distance) * this.speed;
+                }
+            }
+
+            draw() {
+                // Draw zombie body
+                ctx.fillStyle = '#00cc00';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw zombie eyes
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(this.x - 7, this.y - 5, 4, 0, Math.PI * 2);
+                ctx.arc(this.x + 7, this.y - 5, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw zombie outline if visible in flashlight
+                if (gameState.flashlight.on && isInFlashlight(this.x, this.y)) {
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Bullet class
+        class Bullet {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.speed = 5;
+                this.radius = 5;
+                this.lifetime = 150;
+            }
+
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                this.lifetime--;
+            }
+
+            draw() {
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Check if a point is in the flashlight cone
+        function isInFlashlight(x, y) {
+            if (!gameState.flashlight.on) return false;
+
+            const dx = x - gameState.player.x;
+            const dy = y - gameState.player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > gameState.flashlight.range) return false;
+
+            const angle = Math.atan2(dy, dx);
+            const angleDiff = Math.abs(angle - gameState.flashlight.angle);
+            const normalizedDiff = Math.min(angleDiff, Math.PI * 2 - angleDiff);
+
+            return normalizedDiff <= gameState.flashlight.width / 2;
+        }
+
+        // Draw flashlight cone
+        function drawFlashlight() {
+            if (!gameState.flashlight.on) return;
+
+            const startAngle = gameState.flashlight.angle - gameState.flashlight.width / 2;
+            const endAngle = gameState.flashlight.angle + gameState.flashlight.width / 2;
+
+            // Create radial gradient for light
+            const gradient = ctx.createRadialGradient(
+                gameState.player.x, gameState.player.y, 0,
+                gameState.player.x, gameState.player.y, gameState.flashlight.range
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 200, 0.3)');
+            gradient.addColorStop(1, 'rgba(255, 255, 200, 0)');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(gameState.player.x, gameState.player.y);
+            ctx.arc(gameState.player.x, gameState.player.y, gameState.flashlight.range, startAngle, endAngle);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw flashlight beam edge
+            ctx.strokeStyle = 'rgba(255, 255, 100, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(gameState.player.x, gameState.player.y, gameState.flashlight.range, startAngle, endAngle);
+            ctx.stroke();
+        }
+
+        // Draw player
+        function drawPlayer() {
+            ctx.fillStyle = '#0066ff';
+            ctx.beginPath();
+            ctx.arc(gameState.player.x, gameState.player.y, gameState.player.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw player outline
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(gameState.player.x, gameState.player.y, gameState.player.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Spawn a zombie
+        function spawnZombie() {
+            const angle = Math.random() * Math.PI * 2;
+            gameState.zombies.push(new Zombie(angle));
+        }
+
+        // Update game state
+        function update() {
+            if (gameState.gameOver) return;
+
+            // Update flashlight
+            gameState.flashlight.angle = Math.atan2(
+                gameState.mouse.y - gameState.player.y,
+                gameState.mouse.x - gameState.player.x
+            );
+
+            // Check flashlight failure
+            if (gameState.flashlight.on && Date.now() > gameState.flashlight.nextFailTime) {
+                gameState.flashlight.on = false;
+                updateFlashlightStatus();
+            }
+
+            // Spawn zombies
+            if (Date.now() - gameState.lastZombieSpawn > gameState.zombieSpawnRate) {
+                spawnZombie();
+                gameState.lastZombieSpawn = Date.now();
+            }
+
+            // Update zombies
+            gameState.zombies.forEach((zombie, index) => {
+                zombie.update();
+
+                // Check if zombie touches player
+                const dx = zombie.x - gameState.player.x;
+                const dy = zombie.y - gameState.player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < gameState.player.radius + zombie.radius) {
+                    endGame();
+                }
+
+                // Remove off-screen zombies
+                if (zombie.x < -100 || zombie.x > canvas.width + 100 ||
+                    zombie.y < -100 || zombie.y > canvas.height + 100) {
+                    gameState.zombies.splice(index, 1);
+                }
+            });
+
+            // Update bullets
+            gameState.bullets.forEach((bullet, bulletIndex) => {
+                bullet.update();
+
+                // Check collision with zombies
+                gameState.zombies.forEach((zombie, zombieIndex) => {
+                    const dx = bullet.x - zombie.x;
+                    const dy = bullet.y - zombie.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < bullet.radius + zombie.radius) {
+                        zombie.health--;
+                        gameState.bullets.splice(bulletIndex, 1);
+
+                        if (zombie.health <= 0) {
+                            gameState.zombies.splice(zombieIndex, 1);
+                            gameState.score++;
+                            updateScore();
+                        }
+                    }
+                });
+
+                // Remove off-screen bullets
+                if (bullet.lifetime <= 0) {
+                    gameState.bullets.splice(bulletIndex, 1);
+                }
+            });
+        }
+
+        // Draw game
+        function draw() {
+            // Clear canvas with dark overlay
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw flashlight cone
+            drawFlashlight();
+
+            // Draw zombies
+            gameState.zombies.forEach(zombie => zombie.draw());
+
+            // Draw bullets
+            gameState.bullets.forEach(bullet => bullet.draw());
+
+            // Draw player
+            drawPlayer();
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // End game
+        function endGame() {
+            gameState.gameOver = true;
+            const gameOverScreen = document.getElementById('gameOverScreen');
+            const finalScore = document.getElementById('finalScore');
+            finalScore.textContent = `Final Score: ${gameState.score}`;
+            gameOverScreen.classList.add('show');
+        }
+
+        // Restart game
+        function restartGame() {
+            gameState.player.x = canvas.width / 2;
+            gameState.player.y = canvas.height / 2;
+            gameState.flashlight.on = true;
+            gameState.flashlight.nextFailTime = Math.random() * 25000 + 5000;
+            gameState.zombies = [];
+            gameState.bullets = [];
+            gameState.score = 0;
+            gameState.gameOver = false;
+            gameState.lastZombieSpawn = Date.now();
+
+            document.getElementById('gameOverScreen').classList.remove('show');
+            updateScore();
+            updateFlashlightStatus();
+        }
+
+        // Update score display
+        function updateScore() {
+            document.getElementById('scoreDisplay').textContent = `Score: ${gameState.score}`;
+        }
+
+        // Update flashlight status display
+        function updateFlashlightStatus() {
+            const statusElement = document.getElementById('flashlightStatus');
+            if (gameState.flashlight.on) {
+                statusElement.textContent = 'FLASHLIGHT: ON';
+                statusElement.classList.remove('broken');
+            } else {
+                statusElement.textContent = 'FLASHLIGHT: BROKEN';
+                statusElement.classList.add('broken');
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('mousemove', (e) => {
+            gameState.mouse.x = e.clientX;
+            gameState.mouse.y = e.clientY;
+        });
+
+        document.addEventListener('click', () => {
+            if (!gameState.gameOver) {
+                const bullet = new Bullet(
+                    gameState.player.x,
+                    gameState.player.y,
+                    gameState.flashlight.angle
+                );
+                gameState.bullets.push(bullet);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'c') {
+                if (!gameState.gameOver && !gameState.flashlight.on) {
+                    gameState.flashlight.on = true;
+                    gameState.flashlight.nextFailTime = Date.now() + Math.random() * 25000 + 5000;
+                    updateFlashlightStatus();
+                }
+            }
+
+            if (e.key.toLowerCase() === 'r') {
+                restartGame();
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gameState.player.x = canvas.width / 2;
+            gameState.player.y = canvas.height / 2;
+        });
+
+        // Start game loop
+        gameLoop();
+    </script>
+</body>
+</html>
