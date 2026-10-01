@@ -35,7 +35,8 @@
   #hpFill { background: linear-gradient(90deg, #7a1814, #b8352a); }
   #staRow { margin: 5px 0 0 26px; height: 3px; opacity: 0; transition: opacity .6s; }
   #staRow.on { opacity: 1; }
-  #staBar { height: 3px; } #staBar > div { background: #c8c4b0; } #staBar.tired > div { background: var(--danger); }
+  #staBar { height: 3px; } #staBar > div { background: #c8c4b0; } #staBar.tired > div { background: var(--danger); } #staBar.boost > div { background: #d8c070; box-shadow: 0 0 6px #d8c070; }
+  #noise.crouch i { background: rgba(120,160,200,.35); }
   #lvlRow { margin-top: 9px; display: flex; align-items: center; gap: 8px; }
   #lvl { width: 18px; text-align: center; font-size: 11px; font-weight: 600; color: var(--dim); }
   #xpBar { height: 2px; max-width: 120px; } #xpBar > div { background: #7f9cc8; }
@@ -86,6 +87,8 @@
   #prompt { position: absolute; left: 50%; top: 61%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; opacity: 1; transition: opacity .15s; }
   #prompt.hide { opacity: 0; }
   #pRow { display: flex; align-items: center; gap: 8px; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+  .pName { text-transform: none; letter-spacing: 0; font-size: 15px; color: #efe6cf; margin-right: 2px; }
+  .pVerb { font-size: 12px; color: var(--dim); }
   #prompt.dim #pRow { color: var(--dim); } #prompt.dim .key { opacity: .35; }
   .chip { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
   .chip .ic { width: 20px; height: 20px; }
@@ -224,6 +227,20 @@
   .rc .lk { position: absolute; top: 7px; left: 8px; display: flex; align-items: center; gap: 2px; font-size: 11px; color: var(--dim); } .rc .lk .ic { width: 15px; height: 15px; }
   .rc .cost { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .rc.made { animation: pop .5s ease-out; }
+  @media (max-height: 820px), (max-width: 1100px) {
+    #crafting .sheet { width: min(1000px, 97vw); max-height: 96vh; }
+    #crafting .sheetHead { padding: 8px 14px; }
+    #crafting .sheetBody { padding: 10px 12px; }
+    .recipes { grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); gap: 6px; }
+    .rc { flex-direction: row; align-items: center; gap: 8px; padding: 5px 8px; text-align: left; min-height: 48px; }
+    .rc > img { width: 34px; height: 34px; flex: none; }
+    .rc .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .rc .nm { font-size: 13px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rc .cost { justify-content: flex-start; gap: 6px; } .rc .chip { font-size: 12px; } .rc .chip .ic { width: 16px; height: 16px; }
+    .rc .lv { top: 4px; right: 6px; } .rc .lk { top: auto; bottom: 4px; left: auto; right: 6px; }
+  }
+  .rc .txt { display: contents; }
+  @media (max-height: 820px), (max-width: 1100px) { .rc .txt { display: flex; } }
   .flyer { position: fixed; width: 44px; height: 44px; pointer-events: none; z-index: 40; transition: transform .7s cubic-bezier(.3,.6,.4,1), opacity .7s; }
   #skillWrap { overflow-x: auto; }
   #skillTree { position: relative; height: 470px; min-width: 1110px; }
@@ -285,7 +302,7 @@
     <div id="evTxt"></div>
     <canvas id="minimap" width="140" height="140"></canvas>
   </div>
-  <div id="feed"></div>
+  <div id="feed" class="hidden"></div>
   <div id="objective"><div class="lbl">Objective</div><div id="objText"></div><div id="objCount"></div></div>
   <div id="weaponBox">
     <div id="wslots"></div>
@@ -576,14 +593,16 @@ const RES = {
   water: { name: 'Water', carry: 6, stash: 30, color: '#70a8e0', icon: '≈' },
 };
 const AMMO = {
-  light: { name: '9mm', cap: 150 },
-  shells: { name: 'Shells', cap: 48 },
-  rifle: { name: 'Rifle', cap: 80 },
+  light: { name: '9mm', full: '9mm Handgun Ammo', cap: 150 },
+  shells: { name: 'Shells', full: '12 Gauge Shotgun Shells', cap: 48 },
+  rifle: { name: 'Rifle', full: '.308 Rifle Rounds', cap: 80 },
 };
 const ITEMS = {
   bandage: { name: 'Bandage', cap: 6, heal: 25, use: true },
-  medkit: { name: 'Medkit', cap: 4, heal: 65, use: true },
-  adrenaline: { name: 'Adrenaline', cap: 2, heal: 100, use: true, rare: true },
+  medkit: { name: 'Medkit', cap: 3, heal: 9999, use: true },
+  adrenaline: { name: 'Adrenaline', cap: 2, use: true, rare: true, boost: true },
+  coffee: { name: 'Energy Drink', cap: 4, use: true, drink: true },
+  hammer: { name: 'Repair Hammer', cap: 1, tool: true },
   battery: { name: 'Battery', cap: 5, use: true },
   flare: { name: 'Flare', cap: 6 },
   repairkit: { name: 'Repair Kit', cap: 5 },
@@ -651,6 +670,7 @@ const ZTYPES = {
 const STRUCTS = {
   campfire: { name: 'Campfire', cat: 'Basics', w: 1, h: 1, hp: 300, cost: { wood: 10 }, block: 'none', light: 250,
     desc: 'Light at night. Interact during the day to rest until dusk.' },
+  torch: { name: 'Standing Torch', cat: 'Basics', w: 1, h: 1, hp: 120, cost: { wood: 3 }, block: 'none', light: 230, desc: 'Burns all night.' },
   storage: { name: 'Storage Crate', cat: 'Basics', w: 1, h: 1, hp: 300, cost: { wood: 14 }, block: 'all', stash: 120,
     desc: '+120 stash space per resource. Carried resources are stored automatically nearby.' },
   floor: { name: 'Wooden Floor', cat: 'Basics', w: 1, h: 1, hp: 120, cost: { wood: 2 }, block: 'none', floor: true, desc: 'Clean flooring for your base.' },
@@ -664,6 +684,7 @@ const STRUCTS = {
   gate_metal: { name: 'Metal Gate', cat: 'Defence', w: 2, h: 1, hp: 2600, cost: { scrap: 16, stone: 4 }, block: 'zombie', gate: true, wb: 2, noClimb: true, desc: 'Reinforced gate.' },
   barricade: { name: 'Spiked Barricade', cat: 'Defence', w: 1, h: 1, hp: 380, cost: { wood: 9 }, block: 'all', thorns: 8, desc: 'Hurts zombies that attack it.' },
   watchtower: { name: 'Watchtower', cat: 'Defence', w: 2, h: 2, hp: 900, cost: { wood: 30, stone: 6 }, block: 'zombie', tower: true, desc: 'Raised platform: extended sight, zombies cannot climb up.' },
+  barbed_wire: { name: 'Barbed Wire', cat: 'Traps', w: 1, h: 1, hp: 300, cost: { scrap: 3, wood: 1 }, block: 'none', trap: 'wire', desc: 'Slows zombies by 60% and cuts them.' },
   spike_trap: { name: 'Spike Trap', cat: 'Traps', w: 1, h: 1, hp: 220, cost: { wood: 4, scrap: 2 }, block: 'none', trap: 'spike', desc: 'Damages and slows zombies walking over it.' },
   bear_trap: { name: 'Bear Trap', cat: 'Traps', w: 1, h: 1, hp: 160, cost: { scrap: 5 }, block: 'none', trap: 'bear', wb: 1, desc: 'Pins a zombie in place. Rearm with 1 scrap.' },
   electric_fence: { name: 'Electric Fence', cat: 'Traps', w: 1, h: 1, hp: 700, cost: { scrap: 7, components: 2 }, block: 'all', wall: true, power: 5, shock: true, wb: 2, desc: 'Powered wall that shocks attackers.' },
@@ -684,14 +705,16 @@ const GENERATOR_LEVELS = [null, { cap: 40 }, { cap: 70, cost: { scrap: 30, compo
 
 const RECIPES = [
   { id: 'bandage', name: 'Bandage', wb: 1, cost: { medical: 1 }, give: { item: 'bandage', n: 1 }, cat: 'Medical' },
-  { id: 'medkit', name: 'Medkit', wb: 1, needs: 'medical', cost: { medical: 3, water: 1 }, give: { item: 'medkit', n: 1 }, cat: 'Medical' },
-  { id: 'meal', name: 'Cooked Meal', wb: 1, cost: { food: 2, water: 1 }, give: { item: 'medkit', n: 0, heal: 0, buff: 'meal' }, cat: 'Medical' },
+  { id: 'medkit', name: 'Medkit', wb: 2, needs: 'medical', cost: { medical: 3, components: 1, water: 1 }, give: { item: 'medkit', n: 1 }, cat: 'Medical' },
+  { id: 'meal', name: 'Hot Meal', wb: 1, cost: { food: 2, water: 1 }, give: { item: 'medkit', n: 0, heal: 0, buff: 'meal' }, cat: 'Medical' },
+  { id: 'coffee', name: 'Camp Coffee', wb: 1, cost: { water: 1, wood: 1 }, give: { item: 'coffee', n: 1 }, cat: 'Medical' },
   { id: 'ammo_light', name: '9mm Rounds x12', wb: 1, cost: { scrap: 3 }, give: { ammo: 'light', n: 12 }, cat: 'Ammo' },
   { id: 'ammo_shells', name: 'Shotgun Shells x6', wb: 1, cost: { scrap: 4 }, give: { ammo: 'shells', n: 6 }, cat: 'Ammo' },
   { id: 'ammo_rifle', name: 'Rifle Rounds x10', wb: 2, cost: { scrap: 5, components: 1 }, give: { ammo: 'rifle', n: 10 }, cat: 'Ammo' },
   { id: 'battery', name: 'Flashlight Battery', wb: 1, cost: { scrap: 2, components: 1 }, give: { item: 'battery', n: 1 }, cat: 'Tools' },
   { id: 'flare', name: 'Flares x2', wb: 1, cost: { scrap: 1, fuel: 1 }, give: { item: 'flare', n: 2 }, cat: 'Tools' },
   { id: 'repairkit', name: 'Repair Kit', wb: 1, cost: { wood: 6, scrap: 4 }, give: { item: 'repairkit', n: 1 }, cat: 'Tools' },
+  { id: 'hammer', name: 'Repair Hammer', wb: 1, cost: { wood: 4, scrap: 5 }, give: { item: 'hammer', n: 1 }, cat: 'Tools', once: true },
   { id: 'components', name: 'Salvage Component', wb: 2, cost: { scrap: 8 }, give: { res: 'components', n: 1 }, cat: 'Tools' },
   { id: 'backpack1', name: 'Sturdy Backpack (+25% carry)', wb: 1, cost: { wood: 8, scrap: 10 }, give: { backpack: 1 }, cat: 'Gear', once: true },
   { id: 'backpack2', name: 'Military Pack (+60% carry)', wb: 2, cost: { scrap: 20, components: 4, militaryPart: 1 }, give: { backpack: 2 }, cat: 'Gear', once: true },
@@ -729,7 +752,7 @@ const SKILLS = [
   { id: 'mule', b: 'survival', tier: 1, col: 1, name: 'Pack Mule', max: 2, req: ['endurance'], desc: '+20% carrying capacity per rank.' },
   { id: 'recovery', b: 'survival', tier: 1, col: 2, name: 'Recovery', max: 2, req: ['medic'], desc: 'Regenerate health outside combat (faster at rank 2).' },
   { id: 'adrenal', b: 'survival', tier: 2, col: 0, name: 'Adrenal Surge', max: 1, req: ['thickskin'], desc: 'Below 30% health: +20% speed and damage.' },
-  { id: 'forager', b: 'survival', tier: 2, col: 2, name: 'Forager', max: 1, req: ['recovery'], desc: 'Food heals double and grants a stamina boost.' },
+  { id: 'forager', b: 'survival', tier: 2, col: 2, name: 'Forager', max: 1, req: ['recovery'], desc: 'Food and drink effects last twice as long.' },
   { id: 'unbreakable', b: 'survival', tier: 3, col: 1, name: 'Unbreakable', max: 1, cost: 2, req: ['adrenal', 'mule'], desc: 'No single hit can deal more than 30% of your maximum health.' },
   // SCAVENGING
   { id: 'keeneye', b: 'scav', tier: 0, col: 0, name: 'Keen Eye', max: 3, desc: '+15% loot quantity per rank.' },
@@ -778,17 +801,17 @@ const PERK_LEVELS = [3, 8, 14, 21, 29, 38];
 
 // ---------- loot ----------
 const LOOT = {
-  household: [['C', 'res', 'wood', 2, 5], ['C', 'res', 'food', 1, 2], ['C', 'res', 'scrap', 1, 4], ['C', 'res', 'water', 1, 2], ['U', 'res', 'medical', 1, 2],
+  household: [['C', 'res', 'wood', 2, 5], ['C', 'res', 'food', 1, 2], ['U', 'item', 'coffee', 1, 1], ['C', 'res', 'scrap', 1, 4], ['C', 'res', 'water', 1, 2], ['U', 'res', 'medical', 1, 2],
     ['U', 'ammo', 'light', 4, 10], ['U', 'item', 'bandage', 1, 1], ['R', 'res', 'components', 1, 2], ['R', 'item', 'battery', 1, 1], ['VR', 'item', 'skillBook', 1, 1]],
-  food: [['C', 'res', 'food', 1, 3], ['C', 'res', 'water', 1, 3], ['U', 'res', 'medical', 1, 1], ['U', 'res', 'scrap', 1, 3], ['R', 'item', 'battery', 1, 1]],
+  food: [['C', 'res', 'food', 1, 3], ['C', 'res', 'water', 1, 3], ['U', 'item', 'coffee', 1, 2], ['U', 'res', 'medical', 1, 1], ['U', 'res', 'scrap', 1, 3], ['R', 'item', 'battery', 1, 1]],
   medical: [['C', 'res', 'medical', 1, 3], ['U', 'item', 'bandage', 1, 2], ['U', 'res', 'water', 1, 2], ['R', 'item', 'medkit', 1, 1], ['VR', 'item', 'adrenaline', 1, 1]],
-  fuel: [['C', 'res', 'fuel', 1, 3], ['C', 'res', 'scrap', 2, 4], ['U', 'res', 'food', 1, 2], ['U', 'item', 'flare', 1, 2], ['R', 'res', 'components', 1, 2]],
+  fuel: [['C', 'res', 'fuel', 1, 3], ['C', 'res', 'scrap', 2, 4], ['U', 'item', 'coffee', 1, 1], ['U', 'res', 'food', 1, 2], ['U', 'item', 'flare', 1, 2], ['R', 'res', 'components', 1, 2]],
   hardware: [['C', 'res', 'wood', 4, 8], ['C', 'res', 'stone', 3, 6], ['C', 'res', 'scrap', 3, 7], ['U', 'res', 'components', 1, 3], ['U', 'item', 'repairkit', 1, 1], ['R', 'item', 'weaponPart', 1, 1]],
   industrial: [['C', 'res', 'scrap', 4, 9], ['C', 'res', 'fuel', 1, 3], ['U', 'res', 'components', 2, 4], ['R', 'item', 'weaponPart', 1, 1], ['VR', 'item', 'generatorPart', 1, 1]],
   police: [['C', 'ammo', 'light', 8, 18], ['U', 'ammo', 'shells', 3, 8], ['U', 'item', 'bandage', 1, 2], ['R', 'item', 'weaponPart', 1, 1], ['R', 'item', 'battery', 1, 1]],
-  military: [['C', 'ammo', 'light', 10, 20], ['C', 'ammo', 'rifle', 5, 12], ['U', 'ammo', 'shells', 4, 8], ['U', 'item', 'medkit', 1, 1], ['R', 'item', 'militaryPart', 1, 1], ['R', 'item', 'weaponPart', 1, 1], ['VR', 'item', 'circuit', 1, 1]],
+  military: [['C', 'ammo', 'light', 10, 20], ['C', 'ammo', 'rifle', 5, 12], ['U', 'ammo', 'shells', 4, 8], ['R', 'item', 'medkit', 1, 1], ['R', 'item', 'militaryPart', 1, 1], ['R', 'item', 'weaponPart', 1, 1], ['VR', 'item', 'circuit', 1, 1]],
   car: [['C', 'res', 'scrap', 2, 5], ['U', 'ammo', 'light', 3, 8], ['U', 'res', 'fuel', 1, 2], ['U', 'item', 'flare', 1, 1], ['R', 'res', 'components', 1, 2], ['R', 'item', 'bandage', 1, 1]],
-  camp: [['C', 'res', 'food', 1, 2], ['C', 'item', 'flare', 1, 1], ['U', 'ammo', 'light', 4, 10], ['U', 'res', 'medical', 1, 2], ['R', 'ammo', 'shells', 2, 5], ['R', 'item', 'battery', 1, 1], ['VR', 'item', 'skillBook', 1, 1]],
+  camp: [['C', 'res', 'food', 1, 2], ['C', 'item', 'flare', 1, 1], ['U', 'item', 'coffee', 1, 1], ['U', 'ammo', 'light', 4, 10], ['U', 'res', 'medical', 1, 2], ['R', 'ammo', 'shells', 2, 5], ['R', 'item', 'battery', 1, 1], ['VR', 'item', 'skillBook', 1, 1]],
   church: [['C', 'res', 'water', 1, 2], ['C', 'res', 'food', 1, 2], ['U', 'res', 'medical', 1, 2], ['R', 'item', 'medkit', 1, 1], ['VR', 'item', 'skillBook', 1, 1]],
   lumber: [['C', 'res', 'wood', 6, 12], ['U', 'res', 'scrap', 2, 4], ['U', 'res', 'fuel', 1, 2], ['R', 'item', 'repairkit', 1, 1]],
 };
@@ -1876,7 +1899,7 @@ const World = {
     this.buildings.push(b);
     this.openings.push(...b.openings);
     this.rects.push(...b.walls);
-    for (const o of b.openings) if (o.type === 'window') this.rects.push(o.rect);
+    for (const o of b.openings) if (o.type === 'window') { o.rect.win = true; this.rects.push(o.rect); }
     if (b.w * b.h > 50000) b.lanterns.push({ x: x + w * 0.3, y: y + h * 0.5 }, { x: x + w * 0.7, y: y + h * 0.5 });
 
     // container slots along interior walls, avoiding the door
@@ -2040,7 +2063,8 @@ const World = {
     }
   },
   // first static blocker hit along a segment: returns t or null
-  rayHit(x1, y1, x2, y2) {
+  // light = true: windows let light through
+  rayHit(x1, y1, x2, y2, light = false) {
     let best = null;
     const minx = Math.min(x1, x2), maxx = Math.max(x1, x2), miny = Math.min(y1, y2), maxy = Math.max(y1, y2);
     const cx0 = Math.floor(minx / GRID_CELL), cy0 = Math.floor(miny / GRID_CELL);
@@ -2050,7 +2074,7 @@ const World = {
       if (!cell) continue;
       for (const c of cell.circles) { const t = segCircle(x1, y1, x2, y2, c.x, c.y, c.r); if (t !== null && (best === null || t < best)) best = t; }
       for (const r of cell.rects) {
-        if (r.lock !== undefined) continue;
+        if (r.lock !== undefined || (light && r.win)) continue;
         const t = segRect(x1, y1, x2, y2, r);
         if (t !== null && (best === null || t < best)) best = t;
       }
@@ -2377,10 +2401,10 @@ const Records = {
 
 // ---------- transient effects ----------
 const FX = {
-  particles: [], decals: [], floaters: [], screenBlood: [], flashes: [],
+  particles: [], decals: [], floaters: [], screenBlood: [], flashes: [], pickups: [],
   shakeT: 0, hurtT: 0, muzzleT: 0, muzzleBig: false,
   reset() {
-    this.particles = []; this.decals = []; this.floaters = []; this.screenBlood = []; this.flashes = [];
+    this.particles = []; this.decals = []; this.floaters = []; this.screenBlood = []; this.flashes = []; this.pickups = [];
     this.shakeT = 0; this.hurtT = 0; this.muzzleT = 0;
   },
   burst(kind, x, y, n, colors, speed = [60, 240], life = [0.3, 0.7], size = [1.5, 3], dir = null, spread = Math.PI) {
@@ -2400,6 +2424,13 @@ const FX = {
     if (this.decals.length > 260) this.decals.shift();
   },
   floater(x, y, text, color = '#e8d27a') { this.floaters.push({ x, y, text, color, t: 1.6 }); },
+  // "+12 9mm Handgun Ammo" rising above the player; repeats of the same item merge
+  pickupText(key, text, n, name) {
+    const last = this.pickups.find(p => p.key === key && p.age < 0.9 && p.n !== null && n !== null);
+    if (last) { last.n += n; last.text = `${last.n > 0 ? '+' : ''}${last.n} ${name}`; last.age = Math.min(last.age, 0.3); return; }
+    this.pickups.push({ key, text, n, age: 0 });
+    if (this.pickups.length > 4) this.pickups.shift();
+  },
   shake(v) { if (Settings.shake) this.shakeT = Math.max(this.shakeT, v); },
   screenSplat() {
     const x = rand(W * 0.1, W * 0.9), y = rand(H * 0.1, H * 0.75), r = rand(30, 70), blobs = [], drips = [];
@@ -2423,6 +2454,8 @@ const FX = {
     }
     this.particles = this.particles.filter(p => p.life > 0);
     for (const f of this.floaters) { f.t -= dt; f.y -= dt * 22; }
+    for (const p of this.pickups) p.age += dt;
+    this.pickups = this.pickups.filter(p => p.age < 1.9);
     this.floaters = this.floaters.filter(f => f.t > 0);
     for (const s of this.screenBlood) s.life -= dt;
     this.screenBlood = this.screenBlood.filter(s => s.life > 0);
@@ -2511,6 +2544,7 @@ const Stats = {
     S.flashCone = ft.cone * (1 + r('widebeam') * 0.18);
     S.flashFail = d.flashFail * (1 - r('reliable') * 0.35) * (Inv.flashTier === 3 ? 0.6 : 1);
     S.nightVision = 120 + r('nighteyes') * 55;
+    if (Player.onTower) { S.flashRange *= 1.75; S.flashCone *= 1.75; S.nightVision *= 1.5; }
     S.detectMul = 1 - r('shadow') * 0.12;
     S.harvest = 1 + r('lumberjack') * 0.35;
     S.mine = 1 + r('prospector') * 0.35;
@@ -2546,7 +2580,7 @@ const Prog = {
     this.totalXp += n;
     Game.stats.xp += n;
     Game.night.xp += n;
-    if (reason && reason !== 'kill') FX.floater(Player.x, Player.y - 30, `+${n} XP`, '#9fd0ff');
+    if (reason && reason !== 'kill') FX.floater(Player.x + 30, Player.y - 20, `+${n} XP`, '#9fb8d8');
     while (this.xp >= this.need()) {
       this.xp -= this.need();
       this.level++;
@@ -2715,7 +2749,7 @@ const Player = {
   walk: 0, moving: false, sprinting: false, staDelay: 0, exhausted: false,
   weapon: 'pistol', weapons: {}, reloading: false, reloadT: 0, fireCD: 0, swingT: 0, swingDur: 0.3, recoil: 0, held: false,
   invuln: 0, shoveCD: 0, shoveT: 0, combatT: 99, healCD: 0, stepT: 0, noiseT: 0,
-  building: null, onTower: null, secondWind: true, mealT: 0, adrenalT: 0,
+  building: null, onTower: null, secondWind: true, mealT: 0, adrenalT: 0, drinkT: 0, crouch: false,
   interact: null, interactT: 0, interactNeed: 0, prevInteract: null, gatherAnim: 0,
   light: { on: true, state: 'ok', failT: 40, flickT: 0, battery: 100, shakes: 0, lit: true },
   reset() {
@@ -2778,6 +2812,25 @@ const Player = {
     const l = w.melee ? 20 : ({ shotgun: 56, rifle: 60, ar: 54, smg: 44, revolver: 42 }[this.weapon] || 40);
     return { x: this.x + Math.cos(this.aim) * l + Math.cos(this.aim + Math.PI / 2) * 3, y: this.y + Math.sin(this.aim) * l + Math.sin(this.aim + Math.PI / 2) * 3 };
   },
+  // flashlight rays clipped against walls (world walls, cabins, player-built walls)
+  lightRays() {
+    if (this._rayT === T && this._rays) return this._rays;
+    const o = this.lightOrigin(), S = Stats.S;
+    // never let the beam start on the far side of a wall the player is pressed against
+    let ox = o.x, oy = o.y;
+    const tw = World.rayHit(this.x, this.y, ox, oy, true), tb = Base.lightRayT(this.x, this.y, ox, oy);
+    const t0 = Math.min(tw === null ? 1 : tw, tb === null ? 1 : tb);
+    if (t0 < 1) { ox = lerp(this.x, ox, Math.max(0, t0 - 0.05)); oy = lerp(this.y, oy, Math.max(0, t0 - 0.05)); }
+    this._rays = castLightRays(ox, oy, o.a, S.flashCone * 1.25, S.flashRange, 56);
+    this._rayT = T;
+    return this._rays;
+  },
+  inBeam(x, y, slack = 1.1) {
+    const S = Stats.S, o = this.lightOrigin();
+    const d = dist(o.x, o.y, x, y);
+    if (d > S.flashRange * slack || angDiff(Math.atan2(y - o.y, x - o.x), o.a) > S.flashCone * slack) return false;
+    return World.rayHit(o.x, o.y, x, y, true) === null && Base.lightRayT(o.x, o.y, x, y) === null;
+  },
   lightOrigin() {
     const t = this.tip();
     const sway = this.moving ? Math.sin(this.walk * 0.5) * (this.sprinting ? 0.045 : 0.02) : Math.sin(T * 1.3) * 0.006;
@@ -2797,18 +2850,22 @@ const Player = {
     if (Input.keys.KeyD || Input.keys.ArrowRight) mx += 1;
     const len = Math.hypot(mx, my);
     this.moving = len > 0;
-    const wantSprint = (Input.keys.ShiftLeft || Input.keys.ShiftRight) && this.moving && !this.exhausted;
+    // crouch: hold C or Left Ctrl — slower, silent footsteps
+    this.crouch = !!(Input.keys.KeyC || Input.keys.ControlLeft) && !Build.active;
+    const wantSprint = (Input.keys.ShiftLeft || Input.keys.ShiftRight) && this.moving && !this.exhausted && !this.crouch;
     this.sprinting = wantSprint && this.sta > 0;
+    this.drinkT -= dt; this.adrenalT -= dt;
+    if (this.mealT > 0 && !this.sprinting) this.sta = Math.min(this.maxSta, this.sta + 5 * dt);
     if (this.sprinting) {
-      this.sta -= S.sprintCost * dt;
+      this.sta -= S.sprintCost * dt * (this.drinkT > 0 ? 0.6 : 1);
       this.staDelay = 0.9;
       if (this.sta <= 0) { this.sta = 0; this.exhausted = true; Sound.breath(); }
     } else {
       this.staDelay -= dt;
-      if (this.staDelay <= 0) this.sta = Math.min(this.maxSta, this.sta + S.staRegen * dt * (this.moving ? 0.7 : 1) * (this.mealT > 0 ? 1.5 : 1));
+      if (this.staDelay <= 0 || this.drinkT > 0) this.sta = Math.min(this.maxSta, this.sta + S.staRegen * dt * (this.moving ? 0.7 : 1) * (this.mealT > 0 ? 1.6 : 1) * (this.drinkT > 0 ? 2.2 : 1));
       if (this.exhausted && this.sta > this.maxSta * 0.3) this.exhausted = false;
     }
-    let spd = S.speed * (this.sprinting ? 1.55 : 1) * (this.exhausted ? 0.85 : 1);
+    let spd = S.speed * (this.sprinting ? 1.55 : 1) * (this.exhausted ? 0.85 : 1) * (this.crouch ? 0.6 : 1) * (this.adrenalT > 0 ? 1.15 : 1);
     if (World.inGrass(this.x, this.y)) spd *= 0.86;
     if (inWater(this.x, this.y)) spd *= 0.5;
     if (Prog.rank('adrenal') && this.hp < this.maxHp * 0.3) spd *= 1.2;
@@ -2816,9 +2873,9 @@ const Player = {
     if (this.moving) {
       this.x += (mx / len) * spd * dt;
       this.y += (my / len) * spd * dt;
-      this.walk += dt * (this.sprinting ? 15 : 10);
+      this.walk += dt * (this.sprinting ? 15 : this.crouch ? 7 : 10);
       this.stepT -= dt;
-      if (this.stepT <= 0) {
+      if (this.stepT <= 0 && !this.crouch) {
         this.stepT = this.sprinting ? 0.28 : 0.42;
         Sound.footstep(this.sprinting);
         const nr = this.noiseR(this.sprinting ? 'sprint' : 'walk');
@@ -2859,7 +2916,7 @@ const Player = {
 
     this.updateLight(dt);
     this.updateInteract(dt);
-    World.reveal(this.x, this.y, Clock.isNight() ? 260 : 520);
+    World.reveal(this.x, this.y, (Clock.isNight() ? 260 : 520) * (this.onTower ? 2.2 : 1));
     if (Math.floor(T * 2) !== Math.floor((T - dt) * 2)) World.checkDiscovery();
   },
 
@@ -2954,26 +3011,36 @@ const Player = {
     if (this.healCD > 0 || this.hp >= this.maxHp) return;
     const missing = this.maxHp - this.hp;
     let id = null;
-    if (missing > 45 && Inv.items.medkit > 0) id = 'medkit';
+    if (missing > 60 && Inv.items.medkit > 0) id = 'medkit';
     else if (Inv.items.bandage > 0) id = 'bandage';
     else if (Inv.items.medkit > 0) id = 'medkit';
-    else if (Inv.items.adrenaline > 0) id = 'adrenaline';
     if (!id) { UI.toast('Nothing to heal with', 1.4, 'bandage'); Sound.uiDeny(); return; }
-    Inv.items[id]--;
-    const amt = ITEMS[id].heal * Stats.S.healMul;
-    this.hp = Math.min(this.maxHp, this.hp + amt);
-    if (id === 'adrenaline') { this.sta = this.maxSta; this.adrenalT = 10; }
-    this.healCD = 1.2;
-    Sound.heal();
-    FX.floater(this.x, this.y - 26, `+${Math.round(amt)} HP`, '#8f8');
+    this.useItem(id);
+  },
+  // food and drink only ever restore stamina; healing comes from bandages and medkits
+  useItem(id) {
+    if (Inv.items[id] <= 0) return false;
+    const it = ITEMS[id], dur = Prog.rank('forager') ? 2 : 1;
+    if (it.heal) {
+      if (this.hp >= this.maxHp) return false;
+      Inv.items[id]--;
+      const amt = Math.min(this.maxHp - this.hp, it.heal * Stats.S.healMul);
+      this.hp += amt;
+      this.healCD = 1.2;
+      Sound.heal();
+      FX.floater(this.x, this.y - 26, `+${Math.round(amt)} HP`, '#9fd09a');
+      return true;
+    }
+    if (it.drink) { Inv.items[id]--; this.sta = this.maxSta; this.drinkT = 20 * dur; this.exhausted = false; Sound.pickup(); return true; }
+    if (it.boost) { Inv.items[id]--; this.sta = this.maxSta; this.adrenalT = 12 * dur; this.drinkT = 12 * dur; this.exhausted = false; Sound.heal(); return true; }
+    return false;
   },
   eat() {
     if (Inv.total('food') <= 0) return false;
     Inv.spend({ food: 1 });
-    const amt = 12 * Stats.S.healMul * (Prog.rank('forager') ? 2 : 1);
-    this.hp = Math.min(this.maxHp, this.hp + amt);
-    this.mealT = Prog.rank('forager') ? 120 : 60;
-    Sound.heal();
+    this.mealT = 30 * (Prog.rank('forager') ? 2 : 1);
+    this.sta = Math.min(this.maxSta, this.sta + 15);
+    Sound.pickup();
     return true;
   },
   throwFlare() {
@@ -3049,7 +3116,7 @@ const Player = {
       UI.feed('battery', -1);
       return;
     }
-    if (L.state !== 'dead' && L.state !== 'flicker') { if (L.battery < 25) UI.toast('No spare batteries', 1.4, 'battery'); return; }
+    if (L.state !== 'dead' && L.state !== 'flicker') return;
     Sound.shake();
     L.shakes++;
     Noise.emit(this.x, this.y, 120, 'shake');
@@ -3069,10 +3136,7 @@ const Player = {
     const ex = tx + ((this.x - tx) / d) * pad, ey = ty + ((this.y - ty) / d) * pad;
     if (World.rayHit(this.x, this.y, ex, ey) !== null) return false;
     if (Base.rayBlocked(this.x, this.y, ex, ey, except)) return false;
-    if (scoped) {
-      if (World.buildingAt(tx, ty) !== this.building) return false;
-      if (Base.houseAt(tx, ty) !== Base.houseAt(this.x, this.y)) return false;
-    }
+    if (scoped && Base.anyHouseAt(tx, ty) !== Base.anyHouseAt(this.x, this.y)) return false;
     return true;
   },
   findInteract() {
@@ -3109,21 +3173,24 @@ const Player = {
     if (o.kind === 'container') {
       const c = o.c;
       if (c.looted) return null;
-      if (c.lock && !Inv.keys.includes(c.lock)) return { verb: 'Locked', dim: true, chips: [['lock', null, false], [c.lock, null, false]] };
-      return { verb: c.kind === 'note' ? 'Read' : 'Search', time: c.kind === 'note' ? 0.3 : (Prog.rank('scavking') ? 0.6 : 1.2) };
+      const name = containerName(c);
+      if (c.lock && !Inv.keys.includes(c.lock)) return { name, verb: 'Locked', dim: true, chips: [['lock', null, false], [c.lock, null, false]] };
+      return { name, verb: c.kind === 'note' ? 'Read' : 'Search', time: c.kind === 'note' ? 0.3 : (Prog.rank('scavking') ? 0.6 : 1.2) };
     }
     if (o.kind === 'node') {
-      const n = o.n, [verb, k] = { tree: ['Chop', 'wood'], rock: ['Mine', 'stone'], scrap: ['Salvage', 'scrap'], woodpile: ['Take', 'wood'] }[n.type];
-      if (Inv.res[k] >= Inv.carryCap(k) && !Inv.atBase()) return { verb: 'Full', dim: true, chips: [[k, null, false]] };
-      return { verb, time: this.gatherTime(n), chips: [[k, null, true]] };
+      const n = o.n, [verb, k, name] = { tree: ['Chop', 'wood', 'Tree'], rock: ['Mine', 'stone', 'Rock'], scrap: ['Salvage', 'scrap', 'Scrap Pile'], woodpile: ['Take', 'wood', 'Firewood'] }[n.type];
+      if (Inv.res[k] >= Inv.carryCap(k) && !Inv.atBase()) return { name, verb: 'Full', dim: true, chips: [[k, null, false]] };
+      return { name, verb, time: this.gatherTime(n), chips: [[k, null, true]] };
     }
     if (o.kind === 'gate') {
-      if (Inv.keys.includes(o.g.lock)) return { verb: 'Unlock', time: 1.2, chips: [[o.g.lock, null, true]] };
-      return { verb: 'Locked', dim: true, chips: [['lock', null, false], [o.g.lock, null, false]] };
+      if (Inv.keys.includes(o.g.lock)) return { name: 'Gate', verb: 'Unlock', time: 1.2, chips: [[o.g.lock, null, true]] };
+      return { name: 'Gate', verb: 'Locked', dim: true, chips: [['lock', null, false], [o.g.lock, null, false]] };
     }
-    if (o.kind === 'tower') return Endgame.label();
-    if (o.kind === 'pickup') return { verb: 'Take', time: 0 };
-    return Base.interactLabel(o);
+    if (o.kind === 'tower') { const l = Endgame.label(); if (l) l.name = 'Radio Tower'; return l; }
+    if (o.kind === 'pickup') return { name: pickupName(o.p.d), verb: 'Take', time: 0 };
+    const l = Base.interactLabel(o);
+    if (l) l.name = STRUCTS[o.s.type].name;
+    return l;
   },
   gatherTime(n) {
     const S = Stats.S, axe = this.weapons.lumberaxe ? 1.7 : 1;
@@ -3218,8 +3285,7 @@ const Player = {
     if (Inv.res[k] >= Inv.carryCap(k) && !Inv.atBase()) { UI.toast(`${RES[k].name} full`, 1.4, k); Sound.uiDeny(); return; }
     n.chunks--;
     const got = Inv.addRes(k, amt);
-    if (got) FX.floater(n.x, n.y - 20, `+${got} ${RES[k].name}`, RES[k].color);
-    if (n.type === 'scrap' && (Prog.rank('tinkerer') ? chance(0.35) : chance(0.08))) { Inv.addRes('components', 1); FX.floater(n.x, n.y - 36, '+1 Components', RES.components.color); }
+    if (n.type === 'scrap' && (Prog.rank('tinkerer') ? chance(0.35) : chance(0.08))) { Inv.addRes('components', 1); }
     if (n.type === 'rock' && chance(0.06)) { Inv.addRes('scrap', 1); }
     Prog.addXP(2, null);
     if (n.chunks <= 0) {
@@ -3304,6 +3370,17 @@ const Flares = {
   },
 };
 
+// ---------- names for things in the world ----------
+const CONTAINER_NAMES = { drawer: 'Drawer', cabinet: 'Medicine Cabinet', locker: 'Locker', mil: 'Military Crate', can: 'Fuel Cans', toolbox: 'Toolbox', crate: 'Crate', shelf: 'Shelf', chest: 'Chest', pack: 'Backpack', trunk: 'Car Trunk', note: 'Note', special: '', lockbox: '' };
+function containerName(c) {
+  if (c.label && !['Container', 'Shelf', 'Cabinet'].includes(c.label)) return c.label;
+  return CONTAINER_NAMES[c.look] || c.label || 'Container';
+}
+function pickupName(d) {
+  const id = d.t === 'ammo' ? 'ammo_' + d.id : d.id;
+  return `${ITEM_NAME(id)}${d.n > 1 ? ` ×${d.n}` : ''}`;
+}
+
 // ---------- ground pickups (zombie drops) ----------
 const Pickups = {
   list: [],
@@ -3318,9 +3395,10 @@ const Pickups = {
     for (const p of this.list) {
       p.t += dt; p.life -= dt;
       const d = dist(p.x, p.y, Player.x, Player.y);
-      if (d < 70 && Player.canReach(p.x, p.y, 0)) {
-        p.x += (Player.x - p.x) * dt * 6; p.y += (Player.y - p.y) * dt * 6;
-        if (d < 24) this.collect(p);
+      if (d < 40 + Player.r && Player.canReach(p.x, p.y, 0)) {
+        const k = Math.min(1, dt * 4.5);
+        p.x += (Player.x - p.x) * k; p.y += (Player.y - p.y) * k;
+        if (d < 16) this.collect(p);
       }
     }
     this.list = this.list.filter(p => p.life > 0);
@@ -3477,8 +3555,10 @@ const Base = {
       if (dist(s.cx, s.cy, Player.x, Player.y) < 900) UI.toast(`${STRUCTS[s.type].name} destroyed`, 1.8, 'wall');
     } else if (Math.random() < 0.25) Sound.structHit(s.cx, s.cy);
   },
+  hammerable(s) { return !s.destroyed && Inv.items.hammer > 0 && (WALLISH.has(s.type) || s.type === 'barricade'); },
   repairCost(s) {
     const frac = s.destroyed ? 1 : 1 - s.hp / s.maxHp;
+    if (this.hammerable(s)) return { wood: Math.max(1, Math.ceil(8 * frac * Stats.S.repairCost)) };
     const out = {};
     const cost = STRUCTS[s.type].cost;
     for (const k in cost) if (k in RES) out[k] = Math.max(1, Math.ceil(cost[k] * frac * 0.6 * Stats.S.repairCost));
@@ -3510,8 +3590,8 @@ const Base = {
     if (o.act === 'repair') {
       if (s.destroyed && Clock.isNight()) return { verb: 'Destroyed', dim: true, chips: [['sun', null, false]] };
       if (Inv.items.repairkit > 0) return { verb: 'Repair', time: 0.6 * hm, chips: [['repairkit', 1, true]] };
-      const c = this.repairCost(s);
-      return { verb: s.destroyed ? 'Rebuild' : 'Repair', time: (s.destroyed ? 2.2 : 1.3) * hm, chips: costChips(c), dim: !Inv.has(c), hp: s.hp / s.maxHp };
+      const c = this.repairCost(s), ham = this.hammerable(s);
+      return { verb: s.destroyed ? 'Rebuild' : 'Repair', time: (s.destroyed ? 2.2 : ham ? 0.65 : 1.3) * hm, chips: (ham ? [['hammer', null, true]] : []).concat(costChips(c)), dim: !Inv.has(c), meter: s.hp / s.maxHp };
     }
     if (o.act === 'fuel') return { verb: 'Refuel', time: 0.5, chips: [['fuel', Inv.total('fuel'), true]], meter: s.fuel / this.fuelCap(s) };
     if (o.act === 'toggle') return { verb: s.broken ? 'Restart' : s.on ? 'Switch off' : 'Switch on', time: s.broken ? 2.5 : 0.25, meter: STRUCTS[s.type].generator ? s.fuel / this.fuelCap(s) : undefined };
@@ -3519,8 +3599,8 @@ const Base = {
       if (Clock.isNight() || Clock.phase() === 'dusk' || Clock.hour() >= 18) return null;
       return { verb: 'Rest', time: 1.2, chips: [['moon', null, true]] };
     }
-    if (o.act === 'open') return { verb: 'Storage', time: 0 };
-    if (o.act === 'craft') return { verb: 'Workbench', time: 0 };
+    if (o.act === 'open') return { verb: 'Open', time: 0 };
+    if (o.act === 'craft') return { verb: 'Craft', time: 0 };
     if (o.act === 'refill') return s.ammo >= 200 ? null : { verb: 'Load', time: 0.5, chips: [['scrap', 1, Inv.total('scrap') > 0]], meter: s.ammo / 200 };
     if (o.act === 'rearm') return { verb: 'Rearm', time: 0.8, chips: [['scrap', 1, Inv.total('scrap') > 0]] };
     return null;
@@ -3598,6 +3678,7 @@ const Base = {
     for (const s of this.list) {
       if (s.destroyed) continue;
       if (s.type === 'campfire') out.push({ x: s.cx, y: s.cy, r: 260, rgb: '255,120,40', fire: true });
+      else if (s.type === 'torch') out.push({ x: s.cx, y: s.cy - 6, r: 230, rgb: '255,150,60', fire: true });
       else if (s.type === 'lamp' && s.powered && night) out.push({ x: s.cx, y: s.cy, r: 250, rgb: '255,220,160' });
       else if (s.type === 'searchlight' && s.powered && night) out.push({ x: s.cx, y: s.cy, r: 80, rgb: '220,230,255', cone: { a: s.ang, len: 760, half: 0.2 } });
     }
@@ -3649,9 +3730,14 @@ const Base = {
     }
     for (const z of Zombies.list) {
       if (z.dead || rectDist(z.x, z.y, s.rect) > z.r * 0.5) continue;
-      if (d.trap === 'spike') {
+      if (d.trap === 'wire') {
+        Zombies.damage(z, 6 * S.trapMul * dt, 0, 0, z.x, z.y, 0, false, 'trap', false, true);
+        z.slowT = 0.35; z.slowK = 0.4;
+        s.hp -= 1.5 * dt;
+        if (Math.random() < dt * 2) FX.blood(z.x, z.y, 1);
+      } else if (d.trap === 'spike') {
         Zombies.damage(z, 22 * S.trapMul * dt, 0, 0, z.x, z.y, 0, false, 'trap', false, true);
-        z.slowT = 0.4;
+        z.slowT = 0.4; z.slowK = 0.45;
         s.hp -= 4 * dt;
         if (Math.random() < dt * 4) FX.blood(z.x, z.y, 2);
       } else if (d.trap === 'bear' && s.armed) {
@@ -3767,6 +3853,7 @@ const Build = {
 };
 
 // ---------- houses: floors enclosed by walls and covered by roofs ----------
+const LIGHT_BLOCK = new Set(['wall_wood', 'wall_stone', 'wall_metal', 'door', 'gate_wood', 'gate_metal']);
 const WALLISH = new Set(['wall_wood', 'wall_stone', 'wall_metal', 'window', 'door', 'gate_wood', 'gate_metal', 'electric_fence']);
 Object.assign(Base, {
   isWall(k) { const s = this.grid.get(k); return !!s && !s.destroyed && WALLISH.has(s.type); },
@@ -3802,7 +3889,7 @@ Object.assign(Base, {
         }
       }
       if (open || !roofed) continue;
-      const h = { id: houses.length + 1, tiles: new Set(tiles), windows, perim };
+      const h = { id: houses.length + 1, tiles: new Set(tiles), windows, perim, rects: tiles.map(k => ({ x: Math.floor(k / 10000) * TILE, y: (k % 10000) * TILE, w: TILE, h: TILE })) };
       let sx = 0, sy = 0;
       for (const k of tiles) { sx += Math.floor(k / 10000); sy += k % 10000; byKey.set(k, h); }
       h.cx = (sx / tiles.length + 0.5) * TILE; h.cy = (sy / tiles.length + 0.5) * TILE;
@@ -3813,6 +3900,34 @@ Object.assign(Base, {
     return this.houseCache;
   },
   houseAt(x, y) { return this.checkEnclosedSpace().byKey.get(this.key(Math.floor(x / TILE), Math.floor(y / TILE))) || null; },
+  locHouse(b) {
+    if (!b._house) {
+      const t = b.t;
+      b._house = { id: 'L' + World.buildings.indexOf(b), loc: true, b, rects: [{ x: b.x + t, y: b.y + t, w: b.w - 2 * t, h: b.h - 2 * t }],
+        windows: b.openings.map(o => ({ cx: o.cx, cy: o.cy })), lanterns: b.lanterns };
+    }
+    return b._house;
+  },
+  anyHouseAt(x, y) {
+    const h = this.houseAt(x, y);
+    if (h) return h;
+    const b = World.buildingAt(x, y);
+    return b ? this.locHouse(b) : null;
+  },
+  // first wall-like base structure along a segment that blocks light (t in 0..1) or null
+  lightRayT(x1, y1, x2, y2) {
+    const d = dist(x1, y1, x2, y2), n = Math.max(1, Math.ceil(d / 7));
+    let lastK = null;
+    for (let i = 1; i <= n; i++) {
+      const x = lerp(x1, x2, i / n), y = lerp(y1, y2, i / n);
+      const k = this.key(Math.floor(x / TILE), Math.floor(y / TILE));
+      if (k === lastK) continue;
+      lastK = k;
+      const s = this.grid.get(k);
+      if (s && !s.destroyed && LIGHT_BLOCK.has(s.type)) return (i - 1) / n;
+    }
+    return null;
+  },
   // does any solid base structure (walls, windows, closed doors) cut the segment?
   rayBlocked(x1, y1, x2, y2, except = null) {
     const d = dist(x1, y1, x2, y2), n = Math.ceil(d / 8);
@@ -3824,7 +3939,7 @@ Object.assign(Base, {
     return false;
   },
   updateIndoor(dt) {
-    const h = this.houseAt(Player.x, Player.y);
+    const h = this.anyHouseAt(Player.x, Player.y);
     if (h) this.house = h;
     this.indoorK += ((h ? 1 : 0) - this.indoorK) * Math.min(1, dt * 3);
     if (!h && this.indoorK < 0.01) this.house = null;
@@ -3833,7 +3948,7 @@ Object.assign(Base, {
     // roofs over the player's group fade away
     const under = this.roofAt(Player.x, Player.y);
     const groups = this.roofGroups();
-    const g = h ? groups.byKey.get([...h.tiles][0]) : under ? groups.byKey.get(this.key(under.gx, under.gy)) : null;
+    const g = h && !h.loc ? groups.byKey.get([...h.tiles][0]) : under ? groups.byKey.get(this.key(under.gx, under.gy)) : null;
     for (const id of groups.ids) {
       const a = this.roofFade.has(id) ? this.roofFade.get(id) : 1;
       this.roofFade.set(id, a + ((id === g ? 0.1 : 1) - a) * Math.min(1, dt * 6));
@@ -3945,7 +4060,7 @@ const Zombies = {
     const d = dist(z.x, z.y, Player.x, Player.y);
     // inside a sealed house the dead can only see you through a window
     const h = Player.house;
-    if (h && Base.houseAt(z.x, z.y) !== h) {
+    if (h && Base.anyHouseAt(z.x, z.y) !== h) {
       if (!h.windows.some(w => dist(w.cx, w.cy, z.x, z.y) < 260 && dist(w.cx, w.cy, Player.x, Player.y) < 260)) return false;
     }
     if (d < 60) return true;
@@ -3953,10 +4068,10 @@ const Zombies = {
     if (Events.active === 'bloodmoon') r *= 1.4;
     if (Events.active === 'storm') r *= 0.8;
     if (Player.sprinting) r += 50;
+    if (Player.crouch) r *= Player.light.lit ? 0.75 : 0.5;
     const L = Player.light;
     if (night && L.lit) {
-      const o = Player.lightOrigin();
-      if (d < S.flashRange * 1.1 && angDiff(Math.atan2(z.y - o.y, z.x - o.x), o.a) < S.flashCone * 1.15) r = Math.max(r, S.flashRange);
+      if (Player.inBeam(z.x, z.y, 1.12)) r = Math.max(r, S.flashRange);
       else r *= 1.15; // the glow of a light is noticeable
     } else if (night && Prog.rank('ghost')) r *= 0.5;
     if (d > r) return false;
@@ -4035,8 +4150,7 @@ const Zombies = {
         if (z.type === 'brute' && z.sees && dP < 320 && z.chargeCD <= 0) { z.chargeT = 1.0; z.chargeCD = 6; Sound.groan(z.x, z.y, 0.6, 1.8); }
         if (z.type === 'crawler' && z.sees && dP < 140 && z.lungeT < -1.5) z.lungeT = 0.45;
         if (z.type === 'hunter') {
-          const o = P.lightOrigin();
-          if (P.light.lit && dP < S.flashRange && angDiff(Math.atan2(z.y - o.y, z.x - o.x), o.a) < S.flashCone && z.fearT < -2.5 && dP > 120) {
+          if (P.light.lit && P.inBeam(z.x, z.y, 1) && z.fearT < -2.5 && dP > 120) {
             z.fearT = 1.1; Sound.hiss(z.x, z.y);
           }
           if (z.fearT > 0) { const a = Math.atan2(z.y - P.y, z.x - P.x) + 0.9; tx = z.x + Math.cos(a) * 150; ty = z.y + Math.sin(a) * 150; spdMul = 1.1; }
@@ -4068,7 +4182,7 @@ const Zombies = {
       let spd = z.speed * spdMul;
       if (z.chargeT > 0) spd *= 2.3;
       if (z.lungeT > 0) spd *= 3.2;
-      if (z.slowT > 0) spd *= 0.45;
+      if (z.slowT > 0) spd *= z.slowK || 0.45;
       if (z.climbT > 0) { z.climbT -= dt; spd *= 0.4; }
       if (Events.active === 'bloodmoon') spd *= 1.12;
       if (inWater(z.x, z.y)) spd *= 0.5;
@@ -4102,7 +4216,7 @@ const Zombies = {
         z.stuckT = 0; z.lastX = z.x; z.lastY = z.y;
       }
       // ---- attack player ----
-      if (!z.retreat && dP < z.r + P.r + 7 && z.atkCD <= 0 && !(P.onTower && !def.climber)) {
+      if (!z.retreat && dP < z.r + P.r + 7 && z.atkCD <= 0 && !P.onTower) {
         z.atkCD = 1.0;
         P.damage(z.dmg, z);
         z.stun = 0.35;
@@ -4146,7 +4260,7 @@ const Zombies = {
       else {
         const prox = S.nightVision * (P.onTower ? 1.5 : 1);
         if (d < prox) v = 1;
-        else if (L.lit && d < S.flashRange && angDiff(Math.atan2(z.y - o.y, z.x - o.x), o.a) < S.flashCone * 1.1 && World.rayHit(o.x, o.y, z.x, z.y) === null) v = 1;
+        else if (L.lit && P.inBeam(z.x, z.y, 1.08)) v = 1;
         else if (FX.muzzleT > 0 && d < 330) v = 0.8;
         else if (Weather.flash > 0.3) v = 0.7;
         else {
@@ -5238,7 +5352,7 @@ const Horror = {
     for (const f of this.figures) {
       f.t -= dt;
       if (f.vx) { f.x += f.vx * dt; f.y += f.vy * dt; }
-      const lit = Player.light.lit && dist(f.x, f.y, Player.x, Player.y) < Stats.S.flashRange * 0.75 && angDiff(Math.atan2(f.y - Player.y, f.x - Player.x), Player.aim) < Stats.S.flashCone * 0.7;
+      const lit = Player.light.lit && dist(f.x, f.y, Player.x, Player.y) < Stats.S.flashRange * 0.75 && Player.inBeam(f.x, f.y, 0.75);
       if (lit && f.t < f.max - 0.4) { f.t = Math.min(f.t, 0.12); if (!f.seen) { f.seen = true; Sound.whisper(f.x, f.y); } }
     }
     this.figures = this.figures.filter(f => f.t > 0);
@@ -5369,12 +5483,12 @@ const Craft = {
   near() { return Base.nearType('workbench', 150); },
   available(r) {
     if (r.once && Inv.crafted.includes(r.id)) return { ok: false, why: 'done' };
-    if (!this.near()) return { ok: false, why: 'far' };
     if (r.wb > Base.wbLevel()) return { ok: false, why: 'wb' };
     if (r.needs && !Base.get(r.needs)) return { ok: false, why: 'needs' };
     if (r.give.weapon && Player.weapons[r.give.weapon]) return { ok: false, why: 'done' };
     if (r.give.flash && Inv.flashTier >= r.give.flash) return { ok: false, why: 'done' };
     if (r.give.backpack && Inv.backpack >= r.give.backpack) return { ok: false, why: 'done' };
+    if (!this.near()) return { ok: false, why: 'far' };
     const cost = this.cost(r);
     if (!Inv.has(cost)) return { ok: false, why: 'missing' };
     return { ok: true };
@@ -5390,7 +5504,7 @@ const Craft = {
     Inv.spend(this.cost(r));
     const g = r.give;
     if (g.item) { if (g.n) Inv.items[g.item] = Math.min(ITEMS[g.item].cap, Inv.items[g.item] + g.n); }
-    if (g.buff === 'meal') { Player.hp = Math.min(Player.maxHp, Player.hp + 35 * Stats.S.healMul); Player.mealT = 180; UI.feed('food', 'hot meal'); }
+    if (g.buff === 'meal') { Player.mealT = 120 * (Prog.rank('forager') ? 2 : 1); Player.sta = Player.maxSta; UI.feed('food', 'hot meal'); }
     if (g.ammo) Inv.ammo[g.ammo] = Math.min(AMMO[g.ammo].cap, Inv.ammo[g.ammo] + g.n);
     if (g.res) Inv.stash[g.res] = Math.min(Inv.stashCap(g.res), Inv.stash[g.res] + g.n);
     if (g.backpack) { Inv.backpack = g.backpack; Stats.compute(); }
@@ -6012,6 +6126,20 @@ function drawStruct(s, g = ctx) {
       g.fillStyle = '#aaa';
       for (let i = 0; i < 3; i++) for (let k = 0; k < 3; k++) { const px = x + 8 + i * 12, py = y + 8 + k * 12; g.beginPath(); g.moveTo(px, py - 5); g.lineTo(px + 4, py + 4); g.lineTo(px - 4, py + 4); g.fill(); }
       break;
+    case 'barbed_wire':
+      g.strokeStyle = '#6a6460'; g.lineWidth = 1.4;
+      for (let i = 0; i < 3; i++) { g.beginPath(); for (let k = 0; k <= 8; k++) { const px = x + 3 + k * (w - 6) / 8, py = y + 9 + i * 11 + Math.sin(k * 1.7 + i) * 3; k ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke(); }
+      g.strokeStyle = '#9a948c'; g.lineWidth = 1;
+      for (let i = 0; i < 9; i++) { const px = x + 5 + (i * 13) % (w - 8), py = y + 7 + (i * 7) % (h - 10); line(g, px - 2.5, py - 2.5, px + 2.5, py + 2.5); line(g, px + 2.5, py - 2.5, px - 2.5, py + 2.5); }
+      g.fillStyle = '#4a3a28'; g.fillRect(x + 2, y + 4, 4, h - 8); g.fillRect(x + w - 6, y + 4, 4, h - 8);
+      break;
+    case 'torch':
+      g.fillStyle = 'rgba(0,0,0,0.35)'; ellipse(g, cx + 4, cy + 5, 7, 5);
+      g.fillStyle = '#4a3420'; circle(g, cx, cy, 5);
+      g.fillStyle = '#2a1e12'; circle(g, cx, cy, 3);
+      if (g === ctx) for (let i = 0; i < 4; i++) { g.fillStyle = `rgba(255,${140 + i * 25},50,0.85)`; circle(g, cx + Math.sin(T * 9 + i) * 1.5, cy - 4 - i * 2 + Math.cos(T * 11 + i) * 1, 4 - i * 0.8); }
+      else { g.fillStyle = '#ff9a3a'; circle(g, cx, cy - 4, 4); }
+      break;
     case 'bear_trap':
       g.strokeStyle = '#7a7a72'; g.lineWidth = 3;
       g.beginPath(); g.arc(cx, cy, s.armed ? 12 : 7, 0, TAU); g.stroke();
@@ -6416,8 +6544,9 @@ function drawPlayer() {
   ctx.translate(p.x, p.y);
   if (Game.state === 'cutscene') { if (Cutscene.playerA <= 0) { ctx.restore(); return; } ctx.globalAlpha = Cutscene.playerA; }
   else if (p.invuln > 0 && Math.floor(p.invuln * 14) % 2 === 0) ctx.globalAlpha = 0.5;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ellipse(ctx, 4, 5, 18, 15);
+  if (p.onTower) { ctx.fillStyle = 'rgba(0,0,0,0.3)'; ellipse(ctx, 12, 16, 20, 17); ctx.scale(1.16, 1.16); }
+  else { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ellipse(ctx, 4, 5, 18, 15); }
+  if (p.crouch && !p.onTower) ctx.scale(0.88, 0.88);
   ctx.rotate(p.aim);
   const gathering = p.interact && p.interact.kind === 'node' && p.interactT > 0;
   drawSurvivor(ctx, Game.char, {
@@ -6448,11 +6577,39 @@ function drawDecals() {
 function drawPickups() {
   for (const p of Pickups.list) {
     if (!onScreen(p.x, p.y, 20) || (p.life < 6 && Math.floor(p.life * 6) % 2 === 0)) continue;
-    const col = p.d.t === 'ammo' ? '#c8a040' : p.d.t === 'res' ? RES[p.d.id].color : '#e07070';
-    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(p.x - 5, p.y - 3, 12, 9);
-    ctx.fillStyle = col; ctx.fillRect(p.x - 6, p.y - 5 + Math.sin(p.t * 3) * 1.5, 12, 8);
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1; ctx.strokeRect(p.x - 6, p.y - 5 + Math.sin(p.t * 3) * 1.5, 12, 8);
+    const img = Icons.el(p.d.t === 'ammo' ? 'ammo_' + p.d.id : p.d.id);
+    const bob = Math.sin(p.t * 3) * 1.5;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ellipse(ctx, p.x + 2, p.y + 6, 9, 4);
+    if (img.complete) ctx.drawImage(img, p.x - 12, p.y - 14 + bob, 24, 24);
   }
+}
+function drawPickupLabels() {
+  ctx.font = "12px 'Segoe UI', Helvetica, Arial, sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  for (const p of Pickups.list) {
+    const d = dist(p.x, p.y, Player.x, Player.y);
+    if (d > 130 || !onScreen(p.x, p.y, 40)) continue;
+    const a = clamp((130 - d) / 50, 0, 1) * 0.9;
+    const txt = pickupName(p.d), w = ctx.measureText(txt).width + 10;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(8,7,6,0.65)'; rrect(ctx, p.x - w / 2, p.y - 36, w, 17, 3); ctx.fill();
+    ctx.fillStyle = '#e6dfd0'; ctx.fillText(txt, p.x, p.y - 21);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawPickupTexts() {
+  if (!FX.pickups.length) return;
+  ctx.font = "600 13px 'Segoe UI', Helvetica, Arial, sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const n = FX.pickups.length;
+  FX.pickups.forEach((p, i) => {
+    const k = p.age / 1.9;
+    const y = Player.y - 30 - (n - 1 - i) * 17 - k * 22;
+    ctx.globalAlpha = clamp(Math.min(p.age / 0.15, (1.9 - p.age) / 0.6), 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillText(p.text, Player.x + 1, y + 1);
+    ctx.fillStyle = p.n !== null && p.n < 0 ? '#d8a0a0' : '#efe6cf'; ctx.fillText(p.text, Player.x, y);
+  });
+  ctx.globalAlpha = 1;
 }
 function drawParticles(glow) {
   for (const p of FX.particles) {
@@ -6526,14 +6683,40 @@ function coneCut(d, x, y, a, half, R, alpha) {
   }
   d.globalAlpha = 1;
 }
-function openingEnds(o) {
-  const r = o.rect;
-  if (o.side === 'N' || o.side === 'S') return [r.x, r.y + r.h / 2, r.x + r.w, r.y + r.h / 2];
-  return [r.x + r.w / 2, r.y, r.x + r.w / 2, r.y + r.h];
+// rays across a cone, each stopped by the first wall it meets (windows let light through)
+function castLightRays(x, y, a, half, R, n) {
+  const rays = [];
+  for (let i = 0; i <= n; i++) {
+    const ang = a - half + (2 * half * i) / n;
+    const ex = x + Math.cos(ang) * R, ey = y + Math.sin(ang) * R;
+    const tw = World.rayHit(x, y, ex, ey, true), tb = Base.lightRayT(x, y, ex, ey);
+    const t = Math.min(tw === null ? 1 : tw, tb === null ? 1 : tb);
+    rays.push([ang, R * t, t < 1]);
+  }
+  return { x, y, a, half, R, rays };
+}
+// the occluded version of coneCut: same three soft layers, but shaped by the rays
+function conePoly(d, L, alpha, layers = [[1.25, 0.45], [1.0, 0.7], [0.7, 0.85]], base = 1.25) {
+  const g = d.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.R);
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(0.65, 'rgba(0,0,0,0.9)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  d.fillStyle = g;
+  const half = L.half / base;
+  for (const [m, al] of layers) {
+    d.globalAlpha = al * alpha;
+    d.beginPath(); d.moveTo(L.x, L.y);
+    for (const [ang, len, hit] of L.rays) {
+      if (Math.abs(ang - L.a) > half * m + 1e-6) continue;
+      const l = hit ? len + 6 : len; // let the light kiss the wall face
+      d.lineTo(L.x + Math.cos(ang) * l, L.y + Math.sin(ang) * l);
+    }
+    d.closePath(); d.fill();
+  }
+  d.globalAlpha = 1;
 }
 function drawDarkness() {
   const d = dctx, amb = Clock.ambient(), P = Player, S = Stats.S;
-  const inside = P.building;
   d.setTransform(1, 0, 0, 1, 0, 0);
   d.globalCompositeOperation = 'source-over';
   d.globalAlpha = 1;
@@ -6547,15 +6730,15 @@ function drawDarkness() {
     d.globalAlpha = 1;
     cut(d, P.x, P.y, 650, (1 - amb) * 0.6);
   }
-  const pr = S.nightVision * 1.5 * (P.onTower ? 1.5 : 1);
+  const pr = S.nightVision * 1.5;
   let g = d.createRadialGradient(P.x, P.y, 0, P.x, P.y, pr);
   g.addColorStop(0, 'rgba(0,0,0,0.72)');
   g.addColorStop(0.55, 'rgba(0,0,0,0.45)');
   g.addColorStop(1, 'rgba(0,0,0,0)');
   d.fillStyle = g;
   circle(d, P.x, P.y, pr);
-  const lo = P.lightOrigin();
-  if (P.light.lit) coneCut(d, lo.x, lo.y, lo.a, S.flashCone, S.flashRange * (P.onTower ? 1.3 : 1) * rand(0.97, 1) * (P.light.battery < 15 ? 0.7 : 1), 1);
+  const LR = P.light.lit ? P.lightRays() : null;
+  if (LR) conePoly(d, LR, (P.light.battery < 15 ? 0.75 : 1) * rand(0.97, 1));
   if (FX.muzzleT > 0) { const t = P.tip(); cut(d, t.x, t.y, FX.muzzleBig ? 320 : 250, 0.9 * FX.muzzleT / 0.06); }
   for (const f of FX.flashes) cut(d, f.x, f.y, 160, 0.7);
   for (const f of Flares.list) if (f.landed) cut(d, f.x, f.y, 300 * rand(0.88, 1), 0.95);
@@ -6563,26 +6746,21 @@ function drawDarkness() {
   for (const fp of World.firepits) if (onScreen(fp.x, fp.y, 120)) cut(d, fp.x, fp.y, 90 * rand(0.9, 1), 0.5);
   for (const l of Base.lights()) {
     if (!onScreen(l.x, l.y, (l.cone ? l.cone.len : l.r) + 50)) continue;
-    if (l.cone) { coneCut(d, l.x, l.y, l.cone.a, l.cone.half, l.cone.len, 0.95); cut(d, l.x, l.y, 60, 0.6); }
+    if (l.cone) { conePoly(d, castLightRays(l.x, l.y, l.cone.a, l.cone.half * 1.25, l.cone.len, 20), 0.95); cut(d, l.x, l.y, 60, 0.6); }
     else cut(d, l.x, l.y, l.r * (l.fire ? rand(0.92, 1) : 1), l.fire ? 0.82 : 0.9);
   }
   if (Horror.cabinLight) { const b = Horror.cabinLight.b; for (const o of b.openings) if (o.type === 'window') cut(d, o.cx + o.nx * 30, o.cy + o.ny * 30, 70, 0.5); }
-  if (inside) {
-    d.save();
-    d.beginPath(); d.rect(inside.x, inside.y, inside.w, inside.h); d.clip();
-    d.fillStyle = 'rgba(0,0,0,0.45)'; d.fillRect(inside.x, inside.y, inside.w, inside.h);
-    for (const l of inside.lanterns) cut(d, l.x, l.y, 200, 0.85);
-    d.restore();
-  }
+  // indoors (player-built houses and cabins alike): soft ambient light inside
   const hk = Base.indoorK, hs = Base.house;
   if (hk > 0.01 && hs) {
     d.fillStyle = `rgba(0,0,0,${0.5 * hk})`;
-    for (const k of hs.tiles) d.fillRect(Math.floor(k / 10000) * TILE - 1, (k % 10000) * TILE - 1, TILE + 2, TILE + 2);
+    for (const r of hs.rects) d.fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    if (hs.lanterns) for (const l of hs.lanterns) cut(d, l.x, l.y, 200, 0.6 * hk);
   }
   d.setTransform(1, 0, 0, 1, 0, 0);
   d.globalCompositeOperation = 'source-over';
   if (hk > 0.01 && hs) {
-    // everything outside the house sinks into shadow
+    // ...and everything outside sinks into shadow
     const m = mctx;
     m.setTransform(1, 0, 0, 1, 0, 0);
     m.globalCompositeOperation = 'source-over';
@@ -6592,32 +6770,7 @@ function drawDarkness() {
     m.globalCompositeOperation = 'destination-out';
     m.setTransform(DARK_SCALE, 0, 0, DARK_SCALE, -viewX * DARK_SCALE, -viewY * DARK_SCALE);
     m.fillStyle = '#000';
-    for (const k of hs.tiles) m.fillRect(Math.floor(k / 10000) * TILE - 1, (k % 10000) * TILE - 1, TILE + 2, TILE + 2);
-    m.setTransform(1, 0, 0, 1, 0, 0);
-    m.globalCompositeOperation = 'source-over';
-    d.drawImage(maskCanvas, 0, 0);
-  }
-  if (inside) {
-    // looking out of a building: only see through doors and windows
-    const m = mctx, h = inside;
-    m.setTransform(1, 0, 0, 1, 0, 0);
-    m.globalCompositeOperation = 'source-over';
-    m.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-    m.fillStyle = `rgba(0,0,0,${0.55 + 0.35 * amb})`;
-    m.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-    m.globalCompositeOperation = 'destination-out';
-    m.setTransform(DARK_SCALE, 0, 0, DARK_SCALE, -viewX * DARK_SCALE, -viewY * DARK_SCALE);
-    m.fillStyle = '#000';
-    m.fillRect(h.x, h.y, h.w, h.h);
-    for (const o of h.openings) {
-      const [ax, ay, bx, by] = openingEnds(o);
-      const da = Math.hypot(ax - P.x, ay - P.y) || 1, db = Math.hypot(bx - P.x, by - P.y) || 1;
-      m.beginPath();
-      m.moveTo(ax, ay); m.lineTo(bx, by);
-      m.lineTo(bx + ((bx - P.x) / db) * 4000, by + ((by - P.y) / db) * 4000);
-      m.lineTo(ax + ((ax - P.x) / da) * 4000, ay + ((ay - P.y) / da) * 4000);
-      m.closePath(); m.fill();
-    }
+    for (const r of hs.rects) m.fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
     m.setTransform(1, 0, 0, 1, 0, 0);
     m.globalCompositeOperation = 'source-over';
     d.drawImage(maskCanvas, 0, 0);
@@ -6629,16 +6782,18 @@ function drawDarkness() {
 
   ctx.globalCompositeOperation = 'lighter';
   ctx.translate(-viewX, -viewY);
-  if (P.light.lit) {
-    g = ctx.createRadialGradient(lo.x, lo.y, 0, lo.x, lo.y, S.flashRange);
+  if (LR) {
+    g = ctx.createRadialGradient(LR.x, LR.y, 0, LR.x, LR.y, LR.R);
     g.addColorStop(0, `rgba(255,215,150,${0.11 * amb})`);
     g.addColorStop(1, 'rgba(255,215,150,0)');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.moveTo(lo.x, lo.y); ctx.arc(lo.x, lo.y, S.flashRange, lo.a - S.flashCone, lo.a + S.flashCone); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(LR.x, LR.y);
+    for (const [ang, len] of LR.rays) if (Math.abs(ang - LR.a) <= LR.half / 1.25 + 1e-6) ctx.lineTo(LR.x + Math.cos(ang) * len, LR.y + Math.sin(ang) * len);
+    ctx.closePath(); ctx.fill();
   }
   for (const l of Base.lights()) if (!l.cone && onScreen(l.x, l.y, l.r)) glow(l.x, l.y, l.r * 0.6, l.rgb, (l.fire ? 0.16 : 0.1) * amb * (l.fire ? rand(0.85, 1) : 1));
   for (const fp of World.firepits) if (onScreen(fp.x, fp.y, 100)) glow(fp.x, fp.y, 60, '255,90,20', 0.12 * amb);
-  if (hk > 0.01 && hs) { ctx.fillStyle = `rgba(255,170,90,${0.06 * hk})`; for (const k of hs.tiles) ctx.fillRect(Math.floor(k / 10000) * TILE, (k % 10000) * TILE, TILE, TILE); }
+  if (hk > 0.01 && hs) { ctx.fillStyle = `rgba(255,170,90,${0.06 * hk})`; for (const r of hs.rects) ctx.fillRect(r.x, r.y, r.w, r.h); }
   for (const f of Flares.list) if (f.landed) glow(f.x, f.y, 300, '255,40,20', 0.2 * rand(0.8, 1));
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = 'source-over';
@@ -6662,6 +6817,7 @@ function drawGlowPass() {
     if (s.destroyed || !onScreen(s.cx, s.cy, 30)) continue;
     if (s.type === 'campfire') for (let i = 0; i < 4; i++) glow(s.cx + rand(-6, 6), s.cy + rand(-6, 6), 7, '255,90,20', 0.6);
     if (s.type === 'lamp' && s.powered) glow(s.cx, s.cy, 16, '255,230,160', 0.8);
+    if (s.type === 'torch') glow(s.cx, s.cy - 6, 12 * rand(0.85, 1.1), '255,130,40', 0.7);
     if (s.type === 'electric_fence' && s.powered && Math.random() < 0.05) glow(s.cx + rand(-15, 15), s.cy + rand(-15, 15), 8, '140,220,255', 1);
   }
   for (const fp of World.firepits) if (onScreen(fp.x, fp.y, 40)) for (let i = 0; i < 3; i++) glow(fp.x + rand(-6, 6), fp.y + rand(-6, 6), 4, '255,80,20', 0.45);
@@ -6702,6 +6858,8 @@ function drawGlowPass() {
     line(ctx, x - s, y, x + s, y); line(ctx, x, y - s, x, y + s);
   }
   drawStructBars();
+  drawPickupLabels();
+  drawPickupTexts();
   ctx.font = "600 13px 'Segoe UI', Helvetica, Arial, sans-serif";
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const f of FX.floaters) {
@@ -6916,8 +7074,10 @@ function renderWorld() {
   for (const z of Zombies.list) drawZombie(z);
   drawHorrorFigures();
   drawGrass();
-  if (Game.state !== 'dead' && Game.state !== 'menu') drawPlayer();
+  const showP = Game.state !== 'dead' && Game.state !== 'menu';
+  if (showP && !Player.onTower) drawPlayer();
   drawBase(false);
+  if (showP && Player.onTower) drawPlayer(); // up on the platform
   drawFences();
   drawWalls();
   drawBaseRoofs();
@@ -6952,6 +7112,13 @@ const Icons = {
     const u = c.toDataURL();
     this.cache.set(id, u);
     return u;
+  },
+  els: new Map(),
+  // an <img> element for drawing icons onto the canvas
+  el(id) {
+    let e = this.els.get(id);
+    if (!e) { e = new Image(); e.src = this.url(id); this.els.set(id, e); }
+    return e;
   },
   img(id, cls = 'ic') { return `<img class="${cls}" src="${this.url(id)}" alt="">`; },
   of(kind, id) {
@@ -7078,6 +7245,14 @@ const ICON_DRAW = {
   circuit(g) {
     shadowed(g, () => { g.fillStyle = '#1a5a2a'; g.fillRect(10, 16, 44, 32); g.strokeStyle = '#c8b060'; g.lineWidth = 1.5; line(g, 14, 24, 40, 24); line(g, 40, 24, 40, 40); line(g, 18, 40, 50, 40); g.fillStyle = '#111'; g.fillRect(22, 28, 12, 8); g.fillStyle = '#e04040'; circle(g, 48, 22, 2.5); });
   },
+  coffee(g) {
+    shadowed(g, () => { g.fillStyle = '#2a6a4a'; rrect(g, 22, 12, 20, 42, 4); g.fill(); g.fillStyle = '#c8d040'; g.fillRect(22, 24, 20, 14); g.fillStyle = '#ccc'; g.fillRect(25, 8, 14, 5); g.fillStyle = '#1a3a2a'; g.beginPath(); g.moveTo(34, 26); g.lineTo(28, 33); g.lineTo(32, 33); g.lineTo(30, 37); g.lineTo(37, 30); g.lineTo(33, 30); g.fill(); });
+  },
+  hammer(g) {
+    g.save(); g.translate(32, 32); g.rotate(-0.7);
+    shadowed(g, () => { g.fillStyle = '#7a5530'; rrect(g, -22, -3, 40, 6, 3); g.fill(); g.fillStyle = '#666'; g.fillRect(14, -11, 10, 22); g.fillStyle = '#888'; g.fillRect(14, -11, 10, 5); });
+    g.restore();
+  },
   skillBook(g) {
     shadowed(g, () => { g.fillStyle = '#4a2a1a'; g.fillRect(14, 12, 34, 42); g.fillStyle = '#e8e0c8'; g.fillRect(46, 14, 4, 38); g.fillStyle = '#e8d27a'; g.fillRect(20, 22, 22, 3); g.fillRect(20, 28, 16, 2); });
   },
@@ -7161,7 +7336,7 @@ function drawStructIcon(g, type) {
   g.restore();
   void t;
 }
-const ITEM_NAME = id => (RES[id] && RES[id].name) || (ITEMS[id] && ITEMS[id].name) || KEY_ITEMS[id] || (WEAPONS[id] && WEAPONS[id].name) || (id.startsWith('ammo_') && AMMO[id.slice(5)].name + ' rounds') || id;
+const ITEM_NAME = id => (RES[id] && RES[id].name) || (ITEMS[id] && ITEMS[id].name) || KEY_ITEMS[id] || (WEAPONS[id] && WEAPONS[id].name) || (id.startsWith('ammo_') && AMMO[id.slice(5)].full) || (id.startsWith('s:') && STRUCTS[id.slice(2)].name) || id;
 const costChips = (cost, mul = 1) => Object.entries(cost).map(([k, n]) => { const need = Math.ceil(n * mul); return [k, need, Inv.total(k) >= need]; });
 
 // =====================================================================
@@ -7170,7 +7345,7 @@ const costChips = (cost, mul = 1) => Object.entries(cost).map(([k, n]) => { cons
 // =====================================================================
 const CONTROLS = [
   ['WASD', 'Move'], ['Shift', 'Sprint'], ['Mouse', 'Aim & shoot'], ['R', 'Reload'], ['1–9', 'Weapons'], ['E', 'Interact (hold)'],
-  ['F', 'Flashlight'], ['C', 'Shake flashlight'], ['Q', 'Heal'], ['G', 'Flare'], ['V', 'Shove'], ['B', 'Build'],
+  ['F', 'Flashlight'], ['C / Ctrl', 'Crouch · shake flashlight'], ['Q', 'Heal'], ['G', 'Flare'], ['V', 'Shove'], ['B', 'Build'],
   ['Tab', 'Backpack'], ['K', 'Skills'], ['M', 'Map'], ['Esc', 'Pause'],
 ];
 const romanL = n => ['', 'I', 'II', 'III'][n] || n;
@@ -7236,6 +7411,15 @@ const UI = {
     }, n.delay * 1000);
   },
   feed(icon, amount) {
+    const name = ITEM_NAME(icon);
+    let text;
+    if (typeof amount === 'number') text = `${amount > 0 ? '+' : ''}${amount} ${name}`;
+    else if (amount === 'empty') text = 'Nothing useful';
+    else if (amount === 'on') text = `${name} on`;
+    else text = String(amount).charAt(0).toUpperCase() + String(amount).slice(1);
+    FX.pickupText(icon, text, typeof amount === 'number' ? amount : null, name);
+  },
+  feedList(icon, amount) {
     const box = el('feed');
     const last = box.firstElementChild;
     if (last && last.dataset.icon === icon && typeof amount === 'number' && last.dataset.n !== undefined && !last.classList.contains('out')) {
@@ -7277,10 +7461,10 @@ const UI = {
     if (!lab || Game.state !== 'playing' || Build.active) { p.classList.add('hide'); this.cache.promptKey = null; return; }
     p.classList.remove('hide');
     p.classList.toggle('dim', !!lab.dim);
-    const key = lab.verb + JSON.stringify(lab.chips || []) + lab.dim;
+    const key = (lab.name || '') + lab.verb + JSON.stringify(lab.chips || []) + lab.dim;
     if (this.cache.promptKey !== key) {
       this.cache.promptKey = key;
-      el('pRow').innerHTML = (lab.dim ? '' : keyCap('E')) + `<span>${lab.verb}</span>` + (lab.chips || []).map(chipHtml).join('');
+      el('pRow').innerHTML = (lab.name ? `<span class="pName">${lab.name}</span>` : '') + (lab.dim ? '' : keyCap('E')) + `<span class="pVerb">${lab.verb}</span>` + (lab.chips || []).map(chipHtml).join('');
     }
     const m = el('pMeter');
     m.classList.toggle('hidden', lab.meter === undefined);
@@ -7324,6 +7508,9 @@ const UI = {
     el('staRow').classList.toggle('on', P.sta < P.maxSta - 0.5);
     el('staBar').firstElementChild.style.width = `${(P.sta / P.maxSta) * 100}%`;
     el('staBar').classList.toggle('tired', P.exhausted);
+    el('staBar').classList.toggle('boost', P.drinkT > 0 || P.mealT > 0);
+    if (P.drinkT > 0 || P.mealT > 0) el('staRow').classList.add('on');
+    el('noise').classList.toggle('crouch', P.crouch);
     this.set('lvl', String(Prog.level));
     el('xpBar').firstElementChild.style.width = `${(Prog.xp / Prog.need()) * 100}%`;
     el('spIc').classList.toggle('hidden', !(Prog.sp || Prog.perkPicks));
@@ -7564,23 +7751,18 @@ const UI = {
     let icon = s.id, name = ITEM_NAME(s.id), sub = '', act = '';
     if (s.kind === 'res') { sub = `${Inv.res[s.id]} / ${Inv.carryCap(s.id)}`; if (s.id === 'food' && Inv.res.food) act = 'eat'; }
     else if (s.kind === 'ammo') { icon = 'ammo_' + s.id; name = ITEM_NAME(icon); sub = `${Inv.ammo[s.id]}`; }
-    else if (s.kind === 'item') { sub = `${Inv.items[s.id]} / ${ITEMS[s.id].cap}`; if (ITEMS[s.id].heal && Player.hp < Player.maxHp) act = 'use'; }
+    else if (s.kind === 'item') { const it = ITEMS[s.id]; sub = `${Inv.items[s.id]} / ${it.cap}`; if ((it.heal && Player.hp < Player.maxHp) || it.drink || it.boost) act = it.drink ? 'drink' : 'use'; }
     else if (s.kind === 'key') sub = '';
     else if (s.kind === 'weapon') { const w = WEAPONS[s.id], lv = Player.weapons[s.id].lvl; sub = (lv ? `+${lv}` : '') + (w.ammo ? ` ${Icons.img('ammo_' + w.ammo)} ${Inv.ammo[w.ammo]}` : ''); }
     else if (s.id === 'flashlight') { name = FLASH_TIERS[Inv.flashTier].name; sub = `${Math.round(Player.light.battery)}%${Inv.items.battery ? ` &nbsp;${Icons.img('battery')} ${Inv.items.battery}` : ''}`; }
     else if (s.id === 'backpack') { name = ['Old backpack', 'Sturdy backpack', 'Military pack'][Inv.backpack]; }
     if ((s.kind === 'res' && !Inv.res[s.id]) || (s.kind === 'item' && !Inv.items[s.id]) || (s.kind === 'ammo' && !Inv.ammo[s.id])) { this.sel = null; d.innerHTML = ''; return; }
-    d.innerHTML = `${Icons.img(icon, '')}<div><div class="nm">${name}</div><div class="sm">${sub}</div></div>${act ? `<button class="btn solid act" data-act="${act}">${act === 'eat' ? 'Eat' : 'Use'}</button>` : ''}`;
+    d.innerHTML = `${Icons.img(icon, '')}<div><div class="nm">${name}</div><div class="sm">${sub}</div></div>${act ? `<button class="btn solid act" data-act="${act}">${{ eat: 'Eat', drink: 'Drink', use: 'Use' }[act]}</button>` : ''}`;
   },
   useSelected(act) {
     const s = this.sel;
     if (act === 'eat') Player.eat();
-    if (act === 'use' && s.kind === 'item' && Inv.items[s.id] > 0) {
-      Inv.items[s.id]--;
-      Player.hp = Math.min(Player.maxHp, Player.hp + ITEMS[s.id].heal * Stats.S.healMul);
-      if (s.id === 'adrenaline') Player.sta = Player.maxSta;
-      Sound.heal();
-    }
+    if ((act === 'use' || act === 'drink') && s.kind === 'item') Player.useItem(s.id);
     this.renderPanel();
     const slot = document.querySelector(`#panelBody .slot[data-id="${s.id}"]`);
     if (slot) slot.classList.add('flashOk');
@@ -7604,7 +7786,7 @@ const UI = {
     }).join('');
     el('storageBody').innerHTML = `<div class="stLayout">
       <div class="stSide">${Icons.img('backpack')}<div class="grid">${side(Inv.res, k => Inv.carryCap(k), 'bag')}</div></div>
-      <div class="stMid"><button class="arrow" data-all="in" title="Store everything">&raquo;</button><button class="arrow" data-all="out" title="Take everything">&laquo;</button></div>
+      <div class="stMid"><button class="arrow" data-all="match" title="Deposit all matching">&rsaquo;</button><button class="arrow" data-all="in" title="Store everything">&raquo;</button><button class="arrow" data-all="out" title="Take everything">&laquo;</button></div>
       <div class="stSide">${Icons.img('crate')}<div class="grid">${side(Inv.stash, k => Inv.stashCap(k), 'crate')}</div></div>
     </div><div class="hintline">${keyCap('Shift')} all</div>`;
     const body = el('storageBody');
@@ -7612,7 +7794,9 @@ const UI = {
       const s = e.target.closest('.slot');
       const b = e.target.closest('[data-all]');
       if (b) {
-        if (b.dataset.all === 'in') Inv.deposit(); else for (const k of RES_KEYS) Inv.withdraw(k, 999);
+        if (b.dataset.all === 'in') Inv.deposit();
+        else if (b.dataset.all === 'match') { for (const k of RES_KEYS) if (Inv.stash[k] > 0) { const n = Math.min(Inv.res[k], Inv.stashCap(k) - Inv.stash[k]); Inv.res[k] -= n; Inv.stash[k] += n; } }
+        else for (const k of RES_KEYS) Inv.withdraw(k, 999);
         Sound.pickup();
       } else if (s) {
         const k = s.dataset.id;
@@ -7673,8 +7857,8 @@ const UI = {
     el('craftBody').innerHTML = `<div class="recipes">${cards.map(c => `
       <button class="rc ${c.ok ? 'ok' : ''} ${c.locked ? 'off' : ''}" data-key="${c.key}">
         ${c.lock ? `<span class="lk">${Icons.img(c.lock[0])}${c.lock[1]}</span>` : ''}${c.lv ? `<span class="lv">${c.lv}</span>` : ''}
-        ${Icons.img(c.icon, '')}<span class="nm">${c.name}${c.qty ? ` <span class="muted">×${c.qty}</span>` : ''}</span>
-        <span class="cost">${costChips(c.cost).map(chipHtml).join('')}</span>
+        ${Icons.img(c.icon, '')}<span class="txt"><span class="nm">${c.name}${c.qty ? ` <span class="muted">×${c.qty}</span>` : ''}</span>
+        <span class="cost">${costChips(c.cost).map(chipHtml).join('')}</span></span>
       </button>`).join('')}</div>`;
     this._cards = Object.fromEntries(this.craftCards().map(c => [c.key, c]));
     el('craftBody').onclick = e => {
@@ -8047,7 +8231,7 @@ const Game = {
     Spawner.startNight();
     if (!Events.active) UI.banner(`Night ${Clock.day}`, '', 3, 'danger');
     Sound.howl();
-    if (Settings.hints && Clock.day === 1) UI.keyHint([['F', 'Flashlight'], ['G', 'Flare']], 6, 'night');
+    if (Settings.hints && Clock.day === 1) UI.keyHint([['F', 'Flashlight'], ['C', 'Crouch'], ['G', 'Flare']], 6, 'night');
   },
   dawn() {
     this.nightActive = false;
@@ -8245,6 +8429,7 @@ function onKeyDown(e) {
     return;
   }
   if (st !== 'playing') return;
+  if (c === 'ControlLeft' || (e.ctrlKey && ['KeyS', 'KeyD', 'KeyA'].includes(c))) e.preventDefault();
   Input.keys[c] = true;
   if (e.repeat) return;
   if (c === 'Escape' || c === 'KeyP') { if (Build.active) Build.toggle(false); else Game.pause(); return; }

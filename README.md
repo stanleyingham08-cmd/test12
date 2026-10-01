@@ -16,9 +16,11 @@ Day 1 starts at 06:00 at your camp. By day you explore, gather and scavenge, the
   - Walls (wood, stone, metal), windows, doors and gates, barricades, watchtowers.
   - Traps and electric fences.
   - Workbench I–III, generator, medical station, armoury, garden, water collector, radio.
-  - Lamps, searchlights and auto turrets.
+  - Lamps, searchlights, standing torches and auto turrets; barbed wire slows zombies by 60%.
+  - Watchtowers: standing on one extends your flashlight range and cone by 75% and reveals more of the map; zombies can't reach you until they break it.
+  - A craftable Repair Hammer repairs walls, doors and barricades cheaply with wood.
   - Floors are ground: walls, doors and furniture can stand on them. Roofs rest on floors or walls.
-  - Floors fully enclosed by walls/doors and covered by roofs form a house: the roof fades when you step inside, the room warms, outside sound is muffled, and zombies outside cannot see you except through windows.
+  - Floors fully enclosed by walls/doors and covered by roofs form a house (cabins and stores work the same way): the roof fades when you step inside, the room warms, outside sound is muffled, and zombies outside cannot see you except through windows.
   - Structures take damage, show it visually, and must be rebuilt during the day once destroyed.
 - **Power:** the generator burns fuel and powers consumers up to its capacity. You choose what is powered. It is loud.
 - **Weapons:** knife, hatchet, lumber axe, pistol, revolver, shotgun, SMG, hunting rifle and assault rifle, upgradeable at the workbench.
@@ -26,7 +28,9 @@ Day 1 starts at 06:00 at your camp. By day you explore, gather and scavenge, the
 - **Zombie AI:** zombies hear noise, notice your flashlight, chase, search your last known position, and besiege your base.
 - **Night events:** Blood Moon, Blackout, The Hunter, Storm, Horde Night, Siege and Quiet Night.
 - **Exploration:** 16 locations with location-specific loot, rarity tiers, keys and locked areas, and lore notes. Minimap, world map and compass.
-- **Atmosphere:** a short wordless opening scene, darkness, flashlight and fog of war, positional audio, rare scripted scares, and an optional CRT prologue broadcast.
+- **Survival items:** food and drinks restore stamina only (energy drinks and coffee boost sprinting); healing comes from bandages (partial) and medkits (full).
+- **Stealth:** hold C or Left Ctrl to crouch: slower, silent footsteps, harder to spot in the dark. Running and gunfire draw zombies in.
+- **Atmosphere:** a short wordless opening scene, darkness, a flashlight that walls and trees cast shadows against, fog of war, positional audio, rare scripted scares, and an optional CRT prologue broadcast.
 - **Endgame (optional):** repair the radio tower, transmit, and survive until rescue. You can keep playing endlessly afterwards.
 
 ## Controls
@@ -38,7 +42,8 @@ Day 1 starts at 06:00 at your camp. By day you explore, gather and scavenge, the
 | R | Reload (rotate in build mode) |
 | 1–9 / Wheel | Switch weapon (category / item in build mode) |
 | E (hold) | Gather, search, repair, refuel, interact |
-| F / C | Flashlight on/off / shake a dead flashlight or swap battery |
+| F | Flashlight on/off |
+| C / Left Ctrl (hold) | Crouch; tapping C also shakes a dead flashlight or swaps a battery |
 | Q / G / V | Heal / throw flare / shove |
 | B | Build mode (X demolish, right click exit) |
 | Tab / K / M / J | Backpack / skills / map / journal (crafting and storage open at the workbench and crate) |
