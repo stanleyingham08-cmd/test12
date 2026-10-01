@@ -11,7 +11,7 @@ Day 1 starts at 06:00 at your camp. By day you explore, gather and scavenge, the
 - **Modes:** Easy, Regular and Hardcore. Hardcore has scarce supplies, smarter zombies and harsher events, saves only at dawn, and erases the run on death. Records are kept separately for each difficulty.
 - **Character creation:** name, hair style and colour, skin tone, clothing and colours. Your survivor looks the same in-game.
 - **Progression:** levels and XP; skill points from nights survived; a five-branch skill tree (Combat, Survival, Scavenging, Engineering, Scout) with prerequisites and capstones; perks at set levels.
-- **Resources:** wood, stone, scrap, fuel, components, medical supplies, food and water. Carry limits apply; resources are stored automatically at camp. Trees, rocks and scrap piles deplete and regrow.
+- **Resources:** wood, stone, scrap, fuel, components, medical supplies, food and water. Carry limits apply; store resources in the camp crate (building and crafting at camp draw from it). Trees, rocks and scrap piles deplete and regrow.
 - **Base building:** grid placement inside the camp area.
   - Walls (wood, stone, metal), windows, doors and gates, barricades, watchtowers.
   - Traps and electric fences.
