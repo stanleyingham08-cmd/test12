@@ -408,6 +408,7 @@
   <h1>Paused</h1>
   <div class="menu">
     <button class="btn primary" id="btnResume">Resume</button>
+    <button class="btn" id="btnSave">Save</button>
     <button class="btn" id="btnPauseBag">Backpack</button>
     <button class="btn" id="btnPauseMap">Map</button>
     <button class="btn" id="btnPauseSettings">Settings</button>
@@ -8208,6 +8209,7 @@ const Game = {
     Player.reset();
     SaveSystem.apply(d);
     this.recordedKills = this.stats.kills;
+    if (Clock.isNight()) { this.nightActive = true; this.night = this.freshNight(); Spawner.startNight(); }
     if (Objectives.tutorialIdx < TUTORIAL.length && !Objectives.list.some(o => o.tut)) Objectives.pushTutorial();
     if (!Objectives.list.length) Objectives.generate();
     UI.hideAll();
@@ -8312,6 +8314,22 @@ const Game = {
     if (this.state !== 'playing') return;
     this.setState('paused');
     UI.show('pause');
+    this.refreshSaveBtn();
+  },
+  // manual save: any time on Easy/Regular as long as nothing is close; Hardcore only saves at dawn
+  saveBlock() {
+    if (this.diffId === 'hardcore') return 'Hardcore saves at dawn';
+    if (Zombies.list.some(z => !z.retreat && dist(z.x, z.y, Player.x, Player.y) < 600)) return 'Not safe to save';
+    return null;
+  },
+  refreshSaveBtn(done = false) {
+    const b = el('btnSave'), why = this.saveBlock();
+    b.disabled = !!why;
+    b.textContent = done ? 'Saved' : why || 'Save';
+  },
+  manualSave() {
+    if (this.saveBlock()) { Sound.uiDeny(); return; }
+    if (SaveSystem.write('manual')) { this.dirty = false; Sound.chime(); this.refreshSaveBtn(true); setTimeout(() => { if (this.state === 'paused') this.refreshSaveBtn(); }, 1400); }
   },
   resume() {
     UI.hideAll();
@@ -8503,6 +8521,7 @@ click('btnBegin', () => Game.newRun(UI.pendingDiff, UI.draftChar, el('chkIntro')
 click('btnResume', () => Game.resume());
 const backToPause = () => { UI.hideAll(); UI.show('pause'); };
 click('btnPauseSettings', () => UI.settings(backToPause));
+click('btnSave', () => Game.manualSave());
 click('btnPauseBag', () => { Game.setState('playing'); UI.openPanel('backpack'); });
 click('btnPauseMap', () => { Game.setState('playing'); UI.openPanel('map'); });
 click('btnStClose', () => UI.closePanel());
